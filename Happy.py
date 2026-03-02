@@ -1,7 +1,24 @@
 import discord
 from google import genai
+from flask import Flask
+from threading import Thread
 import os
 from dotenv import load_dotenv
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Happy is Online!"
+
+def run():
+    # Render khud hi PORT environment variable deta hai, hum usse uthayenge
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 load_dotenv() # Ye .env file se values khinch lega
 
@@ -63,8 +80,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True 
 
-
+    
 client = MyClient(intents=intents)
-
+if __name__ == "__main__":
+    keep_alive() # Isse port bind ho jayega aur Render khush!
 # Ab client.run(TOKEN) use karo
 client.run(TOKEN)

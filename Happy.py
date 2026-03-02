@@ -70,8 +70,14 @@ Never be formal or academic. Keep it raw and authentic and Short.
                     await message.reply("Bhai, kuch samajh nahi aaya, phir se bol?")
 
             except Exception as e:
+                if "429" in str(e) or "limit" in str(e).lower():
+                    await message.reply("Bhai thoda saans lene de! Google waale keh rahe hain aaj ka quota khatam ho gaya. Thodi der baad ya kal try kariyo! 😎")
+                else:
+            # Agar koi aur error ho toh logs mein print karega
+                    print(f"Error hua hai bhai: {e}")
+                    await message.reply("Arre yaar, dimaag mein thoda short circuit ho gaya hai. Phir se bolna?")
                 # Sirf tabhi ye bolega jab ASLI mein error aaye
-                print(f"Asli Error ye hai bhai: {e}")
+               # print(f"Asli Error ye hai bhai: {e}")
                 # await message.reply("Bhai, dimaag garam ho gaya hai, thodi der baad puch!") 
                 # ^ Isko abhi ke liye comment kar do taaki confusion na ho
 
@@ -86,4 +92,5 @@ if __name__ == "__main__":
     keep_alive() # Isse port bind ho jayega aur Render khush!
 # Ab client.run(TOKEN) use karo
     client.run(TOKEN)
+
 

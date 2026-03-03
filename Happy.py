@@ -39,7 +39,7 @@ class MyClient(discord.Client):
     async def on_member_join(self, member):
         channel = member.guild.system_channel
         if channel:
-            await channel.send(f'Arre welcome mere bhai {member.mention}! 🎉')
+            await channel.send(f'Welcome to the server, {member.mention}! 🎉')
 
     async def on_message(self, message):
         if message.author == self.user:

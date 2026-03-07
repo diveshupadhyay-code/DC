@@ -1,4 +1,4 @@
-# 🤖 Happy Bot - Tera Global Friend
+# 🤖 Happy Bot - Global Friend
 
 **Happy** ek professional Discord bot hai jo India ki street vibe aur global standards ko mix karke banaya gaya hai. Ye bot sirf chatting nahi karta, balki server ko manage (Mod) aur members ka swagat (Welcome/Bye) bhi karta hai.
 
@@ -44,7 +44,7 @@
 
 1.  **Clone the Repo:**
     ```bash
-    git clone [https://github.com/diveshupadhyay-code/happy.git]
+    git clone [[https://github.com/diveshupadhyay-code/DC.git](https://github.com/diveshupadhyay-code/DC.git)]
     ```
 2.  **Install Dependencies:**
     ```bash

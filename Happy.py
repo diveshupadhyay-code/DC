@@ -46,21 +46,33 @@ async def on_ready():
     print(f'Lo bhai, {bot.user} online hai!')
 
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
-@bot.tree.command(name="setwelcome", description="Set welcome channel")
+# --- Ye naya logic har server ka data alag rakhega ---
+
+@bot.tree.command(name="setwelcome", description="Is server ka welcome channel set karo")
 @commands.has_permissions(administrator=True)
 async def setwelcome(interaction: discord.Interaction, channel: discord.TextChannel):
     settings = load_settings()
-    settings["welcome_channel"] = channel.id
+    server_id = str(interaction.guild.id) # Server ki ID lo
+    
+    if server_id not in settings:
+        settings[server_id] = {}
+        
+    settings[server_id]["welcome"] = channel.id
     save_settings(settings)
-    await interaction.response.send_message(f"✅ Welcome messages ab {channel.mention} mein aayenge!")
+    await interaction.response.send_message(f"✅ Is server ka welcome channel ab {channel.mention} hai!")
 
-@bot.tree.command(name="setbye", description="Set bye channel")
+@bot.tree.command(name="setbye", description="Is server ka bye channel set karo")
 @commands.has_permissions(administrator=True)
 async def setbye(interaction: discord.Interaction, channel: discord.TextChannel):
     settings = load_settings()
-    settings["bye_channel"] = channel.id
+    server_id = str(interaction.guild.id)
+    
+    if server_id not in settings:
+        settings[server_id] = {}
+        
+    settings[server_id]["bye"] = channel.id
     save_settings(settings)
-    await interaction.response.send_message(f"✅ Bye messages ab {channel.mention} mein aayenge!")
+    await interaction.response.send_message(f"✅ Is server ka bye channel ab {channel.mention} hai!")
 
 # 1. KICK MEMBER
 @bot.tree.command(name="kick", description="Kisi ko dhakke maar ke nikaalo")
@@ -157,34 +169,34 @@ async def help_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # --- WELCOME EVENT (Glassy Embed) ---
+
 @bot.event
 async def on_member_join(member):
     settings = load_settings()
-    channel_id = settings.get("welcome_channel")
+    server_id = str(member.guild.id)
+    
+    # Check karo ki is server ki ID settings mein hai ya nahi
+    channel_id = settings.get(server_id, {}).get("welcome")
     channel = bot.get_channel(channel_id) if channel_id else member.guild.system_channel
     
     if channel:
-        embed = discord.Embed(
-            description=f"Welcome to the server, {member.mention}! 🎉",
-            color=0x2B2D31 # Glassy Look (Match Discord Dark Theme)
-        )
+        # Tera purana glassy embed logic...
+        embed = discord.Embed(description=f"Welcome to the server, {member.mention}! 🎉", color=0x2B2D31)
         embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-        embed.set_image(url=member.display_avatar.url) # Badi image user ki
+        embed.set_image(url=member.display_avatar.url)
         await channel.send(embed=embed)
 
-# --- BYE EVENT (Specific Channel) ---
 @bot.event
 async def on_member_remove(member):
     settings = load_settings()
-    channel_id = settings.get("bye_channel")
+    server_id = str(member.guild.id)
+    
+    channel_id = settings.get(server_id, {}).get("bye")
     channel = bot.get_channel(channel_id)
     
     if channel:
-        embed = discord.Embed(
-            description=f"**{member.name}** chala gaya... Sad scene ho gaya! 😢",
-            color=0x2B2D31
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
+        # Tera purana bye embed logic...
+        embed = discord.Embed(description=f"**{member.name}** chala gaya! 😢", color=0x2B2D31)
         await channel.send(embed=embed)
 
 

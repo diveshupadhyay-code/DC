@@ -191,14 +191,25 @@ async def on_member_remove(member):
     settings = load_settings()
     server_id = str(member.guild.id)
     
+    # Specific bye channel check karega server ID ke hisaab se
     channel_id = settings.get(server_id, {}).get("bye")
     channel = bot.get_channel(channel_id)
     
     if channel:
-        # Tera purana bye embed logic...
-        embed = discord.Embed(description=f"**{member.name}** chala gaya! 😢", color=0x2B2D31)
+        embed = discord.Embed(
+            title="Goodbye! 👋",
+            description=f"**{member.name}** has left the server. We're sorry to see you go!",
+            color=0x2B2D31 # Glassy Look (Discord Dark Theme)
+        )
+        
+        # User ki info aur image
+        embed.set_author(name="Member Left", icon_url=member.display_avatar.url)
+        embed.set_thumbnail(url=member.display_avatar.url)
+        
+        # Footer mein total members dikhayega
+        embed.set_footer(text=f"Current Members: {member.guild.member_count}")
+        
         await channel.send(embed=embed)
-
 
 # AFK SLASH COMMAND
 @bot.tree.command(name="afk", description="AFK set karo taaki log pareshan na karein")
@@ -281,4 +292,5 @@ Overall Tone:
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)
+
 

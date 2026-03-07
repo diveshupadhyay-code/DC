@@ -158,7 +158,7 @@ async def stats(interaction: discord.Interaction):
 @bot.tree.command(name="help", description="Happy ki shaktiyon ki list")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🤖 Happy Bot Help Menu",
+        title="🤖 Happy Help Menu",
         description="Bhai, main yahan sabka swagat karne aur thodi masti karne ke liye hoon!",
         color=0x2B2D31
     )
@@ -235,7 +235,7 @@ async def on_message(message):
             await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai. \n**Reason:** {reason}", delete_after=10)
     
     # Heart Reaction logic
-    greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi"]
+    greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "good afternoon", "good evening", "welcome"]
     if any(word in message.content.lower() for word in greetings):
         await message.add_reaction("💜")
 
@@ -281,3 +281,4 @@ Overall Tone:
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)
+

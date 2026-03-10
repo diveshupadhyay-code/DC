@@ -165,7 +165,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="🌍 Global Commands", value="`/afk`, `/userinfo`, `/avatar`, `/stats`, `/ping`", inline=False)
     embed.add_field(name="🧠 AI Chat", value="Bas mujhe mention karo (`@Happy`) aur kuch bhi pucho, jawab milega!", inline=False)
     embed.add_field(name="🛡️ Admin Only", value="`/kick`, `/ban`, `/mute`, `/setwelcome`, `/setbye`, `/role`, `/warn`", inline=False)
-    embed.set_footer(text="Developed by the 💜")
+    embed.set_footer(text="Developed by the 💖")
     await interaction.response.send_message(embed=embed)
 
 # --- WELCOME EVENT (Glassy Embed) ---
@@ -248,7 +248,7 @@ async def on_message(message):
     # Heart Reaction logic
     greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "good afternoon", "good evening", "welcome"]
     if any(word in message.content.lower() for word in greetings):
-        await message.add_reaction("💜")
+        await message.add_reaction("💖")
 
     if bot.user.mentioned_in(message):
         clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '')
@@ -292,5 +292,6 @@ Overall Tone:
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)
+
 
 

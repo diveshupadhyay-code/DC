@@ -6,6 +6,8 @@ from threading import Thread
 import os, json
 from dotenv import load_dotenv
 import datetime
+import asyncio 
+import random
 
 afk_users = {}
 # --- Database Setup (Channel IDs yaad rakhne ke liye) ---
@@ -124,6 +126,120 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
         color=discord.Color.red()
     )
     await interaction.response.send_message(content=f"{member.mention}", embed=embed)
+
+# ANNOUNCEMENT & EVENT PING COMMAND
+@bot.tree.command(name="announce", description="Server mein event ya koi bada announcement karo")
+@commands.has_permissions(administrator=True)
+async def announce(
+    interaction: discord.Interaction, 
+    title: str, 
+    description: str, 
+    ping: bool = False, 
+    channel: discord.TextChannel = None
+):
+    # Agar channel select nahi kiya, toh current channel mein bhejega
+    target_channel = channel or interaction.channel
+    
+    embed = discord.Embed(
+        title=f"📢 {title}",
+        description=description,
+        color=0x2B2D31 # Wahi glassy theme
+    )
+    embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+    embed.set_footer(text=f"Announced by {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
+    embed.timestamp = discord.utils.utcnow()
+
+    # Agar ping True hai, toh @everyone ke saath bhejega
+    content = "@everyone" if ping else None
+
+    await target_channel.send(content=content, embed=embed)
+    await interaction.response.send_message(f"✅ Announcement {target_channel.mention} mein bhej di gayi hai!", ephemeral=True)
+
+@bot.tree.command(name="giveaway", description="Server mein giveaway start karo")
+@commands.has_permissions(administrator=True)
+async def giveaway(
+    interaction: discord.Interaction, 
+    prize: str, 
+    duration_minutes: int, 
+    winners_count: int = 1
+):
+    # Time calculate karne ke liye
+    end_time = discord.utils.utcnow() + datetime.timedelta(minutes=duration_minutes)
+    
+    embed = discord.Embed(
+        title="🎁 NEW GIVEAWAY! 🎁",
+        description=f"Prize: **{prize}**\nReact with 🎉 to enter!\n\n**Winners:** {winners_count}\n**Ends in:** {duration_minutes} Minutes",
+        color=0x2B2D31
+    )
+    embed.set_footer(text=f"Ends at {end_time.strftime('%H:%M:%S UTC')}")
+    
+    # Message bhejna aur reaction add karna
+    await interaction.response.send_message(f"✅ Giveaway started for **{prize}**!", ephemeral=True)
+    msg = await interaction.channel.send(embed=embed)
+    await msg.add_reaction("🎉")
+
+    # Wait karna jab tak timer khatam na ho
+    await asyncio.sleep(duration_minutes * 60)
+
+    # Naya message fetch karna taaki reactions dekh sakein
+    new_msg = await interaction.channel.fetch_message(msg.id)
+    users = []
+    
+    for reaction in new_msg.reactions:
+        if str(reaction.emoji) == "🎉":
+            async for user in reaction.users():
+                if not user.bot:
+                    users.append(user)
+
+    # Winner announce karna
+    if len(users) > 0:
+        winners = random.sample(users, min(len(users), winners_count))
+        winner_mentions = ", ".join([w.mention for w in winners])
+        
+        win_embed = discord.Embed(
+            title="🎊 GIVEAWAY ENDED 🎊",
+            description=f"Prize: **{prize}**\n\n**Winner(s):** {winner_mentions}",
+            color=0x2B2D31
+        )
+        await interaction.channel.send(f"Congratulations {winner_mentions}! You won **{prize}**! 🏆", embed=win_embed)
+    else:
+        await interaction.channel.send(f"😥 Giveaway for **{prize}** ended, but no one participated.")
+
+#/ping speed
+@bot.tree.command(name="ping", description="Bot ki speed check karo")
+async def ping(interaction: discord.Interaction):
+    # Bot ki latency milliseconds (ms) mein calculate hoti hai
+    latency = round(bot.latency * 1000) 
+    
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        description=f"Happy ki speed: **{latency}ms**",
+        color=0x2B2D31
+    )
+    
+    # Speed ke hisaab se reaction
+    if latency < 150:
+        embed.set_footer(text="Bhai, internet ek dum 5G chal raha hai! 🚀")
+    else:
+        embed.set_footer(text="Thoda slow hai, par kaam chal jayega. 🐢")
+
+    await interaction.response.send_message(embed=embed)
+
+#echooooo
+@bot.tree.command(name="echo", description="Jo aap bologe, Happy wahi dohrayega")
+@commands.has_permissions(administrator=True)
+async def echo(interaction: discord.Interaction, message: str, channel: discord.TextChannel = None):
+    # Agar channel select nahi kiya, toh isi channel mein bhejega
+    target_channel = channel or interaction.channel
+    
+    try:
+        # Bot message bhej dega
+        await target_channel.send(message)
+        
+        # Admin ko confirmation milegi jo sirf usse dikhegi (Ephemeral)
+        await interaction.response.send_message(f"✅ Message bhej diya gaya hai {target_channel.mention} mein!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Kuch gadbad ho gayi: {e}", ephemeral=True)
 
 # 1. USER INFO: Kisi bhi member ki detail nikalne ke liye
 @bot.tree.command(name="userinfo", description="Kisi bhi bande ki kundli nikaalo")
@@ -292,6 +408,3 @@ Overall Tone:
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)
-
-
-

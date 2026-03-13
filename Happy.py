@@ -10,6 +10,7 @@ import asyncio
 import random
 
 afk_users = {}
+ai_enabled = True  # By default AI on rahega
 # --- Database Setup (Channel IDs yaad rakhne ke liye) ---
 DATA_FILE = "settings.json"
 
@@ -225,21 +226,28 @@ async def ping(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-#echooooo
-@bot.tree.command(name="echo", description="Jo aap bologe, Happy wahi dohrayega")
+#echoooo
+@bot.tree.command(name="echo", description="Happy ki awaaz mein baat karein (AI apne aap band ho jayegi)")
 @commands.has_permissions(administrator=True)
 async def echo(interaction: discord.Interaction, message: str, channel: discord.TextChannel = None):
-    # Agar channel select nahi kiya, toh isi channel mein bhejega
+    global ai_enabled # Ye zaroori hai taaki hum global switch ko chhed sakein
+    
     target_channel = channel or interaction.channel
     
     try:
-        # Bot message bhej dega
+        # 1. Sabse pehle AI band kar dete hain
+        ai_enabled = False
+        
+        # 2. Bot message bhej dega
         await target_channel.send(message)
         
-        # Admin ko confirmation milegi jo sirf usse dikhegi (Ephemeral)
-        await interaction.response.send_message(f"✅ Message bhej diya gaya hai {target_channel.mention} mein!", ephemeral=True)
+        # 3. Admin ko confirmation (Sirf tujhe dikhega)
+        await interaction.response.send_message(
+            f"✅ Message bhej diya gaya hai {target_channel.mention} mein!\n🤖 **Happy ki AI Chat ab BAND hai.** (Wapas on karne ke liye `/ai_mode` use karein)", 
+            ephemeral=True
+        )
     except Exception as e:
-        await interaction.response.send_message(f"❌ Kuch gadbad ho gayi: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ Kuch locha ho gaya: {e}", ephemeral=True)
 
 # 1. USER INFO: Kisi bhi member ki detail nikalne ke liye
 @bot.tree.command(name="userinfo", description="Kisi bhi bande ki kundli nikaalo")
@@ -340,34 +348,54 @@ async def afk(interaction: discord.Interaction, reason: str = "Break le raha hoo
     await interaction.response.send_message(f"✅ {interaction.user.mention}, ab aap AFK ho. Reason: {reason}")
 
 # --- AI CHAT LOGIC (Tera Pura Original Instruction) ---
+@bot.tree.command(name="ai_mode", description="AI Chat ko ON ya OFF karo")
+@commands.has_permissions(administrator=True)
+async def ai_mode(interaction: discord.Interaction, status: bool):
+    global ai_enabled
+    ai_enabled = status
+    state = "CHALU (ON) ✅" if ai_enabled else "BAND (OFF) ❌"
+    
+    embed = discord.Embed(
+        title="🤖 AI Chat Status",
+        description=f"Bhaiyo, Happy ki AI Chat ab **{state}** hai.",
+        color=0x2B2D31
+    )
+    await interaction.response.send_message(embed=embed)
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user: return
 
-    # --- AFK REMOVAL: Agar AFK banda khud message kare toh AFK hat jaye ---
+    # --- AFK REMOVAL ---
     if message.author.id in afk_users:
         del afk_users[message.author.id]
         try:
-            # [AFK] tag hatana nickname se
             new_nick = message.author.display_name.replace("[AFK] ", "")
             await message.author.edit(nick=new_nick)
         except:
             pass
         await message.channel.send(f"Welcome back {message.author.mention}! Aapka AFK hata diya gaya hai.", delete_after=5)
 
-    # --- AFK CHECK: Agar koi AFK bande ko mention kare ---
+    # --- AFK CHECK ---
     for mention in message.mentions:
         if mention.id in afk_users:
             reason = afk_users[mention.id]
             await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai. \n**Reason:** {reason}", delete_after=10)
     
-    # Heart Reaction logic
+    # --- HEART REACTION LOGIC ---
     greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "good afternoon", "good evening", "welcome"]
     if any(word in message.content.lower() for word in greetings):
         await message.add_reaction("💖")
 
+    # --- AI CHAT LOGIC (With Toggle Check) ---
     if bot.user.mentioned_in(message):
+        # YAHAN CHECK LAGA DIYA HAI
+        if not ai_enabled: 
+            return # Agar AI Off hai, toh yahan se bot chup ho jayega
+
         clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '')
+        
+        # Teri purani lambi instruction yahan rahegi (Maine short mein likhi hai)
         instruction = """Purpose and Goals:
 * Embody the persona of 'Happy', a person from India who speaks in 'Hinglish' (a mix of Hindi and English) with a distinct street accent.
 * Engage users in casual, energetic, and relatable conversations that reflect the vibrant street culture of urban India.
@@ -398,13 +426,13 @@ Overall Tone:
         
         try:
             response = client_ai.models.generate_content(model=MODEL_ID, contents=f"Instruction: {instruction}\n\nUser: {clean_prompt}")
-            if response and response.text: await message.reply(response.text)
+            if response and response.text: 
+                await message.reply(response.text)
         except Exception as e:
             print(f"Error: {e}")
-            await message.reply("Dimaag garam hai bhai!")
+            await message.reply("Dimaag garam hai bhai, thoda rest lene de!")
     
     await bot.process_commands(message)
-
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)

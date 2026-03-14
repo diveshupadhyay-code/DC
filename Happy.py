@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from google import genai
 from flask import Flask
 from threading import Thread
@@ -10,6 +10,8 @@ import asyncio
 import random
 
 afk_users = {}
+active_calls = {}  # {server_id: {'partner_id': id, 'channel_id': id}}
+waiting_list = []  # List of dicts: [{'server_id': id, 'channel_id': id}]
 ai_enabled = True  # By default AI on rahega
 # --- Database Setup (Channel IDs yaad rakhne ke liye) ---
 DATA_FILE = "settings.json"
@@ -42,11 +44,46 @@ intents.message_content = True
 intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# --- Status Loop ---
+@tasks.loop(seconds=15) # Har 15 second mein badlega
+async def change_status():
+    await bot.wait_until_ready()
+    
+    # Check karenge ki AI on hai ya off taaki status uske hisaab se dikhe
+    if ai_enabled:
+        status_list = [
+            f"Watching {len(bot.users)} members",
+            "Listening to @Happy",
+            "Type /help for masti",
+            "AI Mode: ON ✅"
+        ]
+    else:
+        status_list = [
+            "Mod is chatting via Echo 🎤",
+            "AI Mode: Sleeping 😴",
+            "Watching the conversation",
+            "Owner is in control"
+        ]
+    
+    # Randomly ek status uthayenge
+    import random
+    new_status = random.choice(status_list)
+    
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=new_status))
+
+# --- Loop ko Start karne ke liye ---
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="Youuuu 🫣"))
-    await bot.tree.sync()
-    print(f'Lo bhai, {bot.user} online hai!')
+    print(f'Logged in as {bot.user.name}')
+    if not change_status.is_running():
+        change_status.start() # Loop shuru ho jayega
+    
+    # Slash commands sync karne ke liye
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands!")
+    except Exception as e:
+        print(e)
 
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
 # --- Ye naya logic har server ka data alag rakhega ---
@@ -127,6 +164,89 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
         color=discord.Color.red()
     )
     await interaction.response.send_message(content=f"{member.mention}", embed=embed)
+
+# --- CALL COMMAND (Matchmaking) ---
+@bot.tree.command(name="call", description="Isi channel ko dusre server se connect karein")
+@commands.has_permissions(administrator=True)
+async def call(interaction: discord.Interaction):
+    global waiting_list
+    server_id = interaction.guild.id
+    channel_id = interaction.channel.id # Jis channel mein command chali
+
+    if server_id in active_calls:
+        await interaction.response.send_message("❌ Bhai, aap pehle se call par ho!", ephemeral=True)
+        return
+
+    # Check agar ye server pehle se wait kar raha hai
+    if any(d['server_id'] == server_id for d in waiting_list):
+        await interaction.response.send_message("⏳ Waiting list mein ho bhai, thoda sabar!", ephemeral=True)
+        return
+
+    if waiting_list:
+        # Match mil gaya!
+        partner_data = waiting_list.pop(0)
+        p_server_id = partner_data['server_id']
+        p_channel_id = partner_data['channel_id']
+
+        # Dono ko aapas mein connect karo
+        # Ismein hum 'partner_channel' aur 'my_channel' dono save kar rahe hain
+        active_calls[server_id] = {'partner_channel': p_channel_id, 'my_channel': channel_id}
+        active_calls[p_server_id] = {'partner_channel': channel_id, 'my_channel': p_channel_id}
+
+        await interaction.response.send_message("☎️ **Call Connected!** Ab aap is channel mein baatein kar sakte hain.")
+        
+        # Dusre server ke usi channel mein message bhejna
+        partner_channel = bot.get_channel(p_channel_id)
+        if partner_channel:
+            await partner_channel.send("☎️ **Call Connected!** Ek partner mil gaya hai. Shuru ho jao!")
+    else:
+        # Waiting list mein daal do channel ID ke saath
+        waiting_list.append({'server_id': server_id, 'channel_id': channel_id})
+        await interaction.response.send_message("📡 **Waiting...** Jaise hi koi aur server call karega, main isi channel ko connect kar doonga.", ephemeral=True)
+
+# --- HANGUP COMMAND (Error Proof) ---
+@bot.tree.command(name="hangup", description="Call khatam karein ya waiting list se hatein")
+@commands.has_permissions(administrator=True)
+async def hangup(interaction: discord.Interaction):
+    global waiting_list
+    server_id = interaction.guild.id
+    
+    # 1. Check karo: Kya server Waiting List mein hai?
+    # Hum list comprehension use karenge server_id dhoondne ke liye
+    server_in_waiting = next((d for d in waiting_list if d['server_id'] == server_id), None)
+    
+    if server_in_waiting:
+        waiting_list.remove(server_in_waiting)
+        await interaction.response.send_message("📴 Aap waiting list se hat gaye hain.", ephemeral=True)
+        return
+
+    # 2. Check karo: Kya server Active Call par hai?
+    if server_id in active_calls:
+        data = active_calls[server_id]
+        partner_id = data.get('partner_id') or data.get('partner_server') # Safe get
+        partner_channel_id = data.get('partner_channel')
+        
+        # Connection delete karo (Dono side se)
+        if server_id in active_calls:
+            del active_calls[server_id]
+        if partner_id and partner_id in active_calls:
+            del active_calls[partner_id]
+            
+        await interaction.response.send_message("📴 Call cut kar di gayi hai.")
+        
+        # Partner ko khabar kar do
+        if partner_channel_id:
+            partner_channel = bot.get_channel(partner_channel_id)
+            if partner_channel:
+                try:
+                    await partner_channel.send("📴 **Partner ne call cut kar di hai.**")
+                except:
+                    pass
+    else:
+        # Kuch bhi nahi mila
+        await interaction.response.send_message("Bhai, koi active call ya waiting request nahi mili!", ephemeral=True)
+
+
 
 # ANNOUNCEMENT & EVENT PING COMMAND
 @bot.tree.command(name="announce", description="Server mein event ya koi bada announcement karo")
@@ -382,10 +502,22 @@ async def on_message(message):
             reason = afk_users[mention.id]
             await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai. \n**Reason:** {reason}", delete_after=10)
     
-    # --- HEART REACTION LOGIC ---
+    # --- HEART REACTION LOGIC (Safe Version) ---
     greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "good afternoon", "good evening", "welcome"]
-    if any(word in message.content.lower() for word in greetings):
-        await message.add_reaction("💖")
+    
+    # Hum check kar rahe hain ki kya message mein koi greeting hai
+    if any(word in message.content.lower().split() for word in greetings):
+        try:
+            # Ek chota sa delay (0.2 se 0.8 seconds) taaki Discord ko spam na lage
+            await asyncio.sleep(random.uniform(0.2, 0.8)) 
+            await message.add_reaction("💖")
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                print("Rate limit aayi, par Happy ne handle kar liya! 😎")
+            else:
+                pass
+        except:
+            pass
 
     # --- AI CHAT LOGIC (With Toggle Check) ---
     if bot.user.mentioned_in(message):
@@ -432,6 +564,27 @@ Overall Tone:
             print(f"Error: {e}")
             await message.reply("Dimaag garam hai bhai, thoda rest lene de!")
     
+    # --- GLOBAL CALL RELAY (Simple Text Mode) ---
+    server_id = message.guild.id
+    
+    if server_id in active_calls:
+        data = active_calls[server_id]
+        
+        # Check: Sahi channel, not bot, no AI mention
+        if message.channel.id == data['my_channel'] and not message.author.bot and not bot.user.mentioned_in(message):
+            
+            target_channel = bot.get_channel(data['partner_channel'])
+            
+            if target_channel:
+                try:
+                    # [Call Icon] [Username]: [Message Content]
+                    # Yahan humne text format set kar diya hai
+                    chat_msg = f"☎️ **{message.author.name}**: {message.content}"
+                    
+                    await target_channel.send(chat_msg)
+                except Exception as e:
+                    print(f"Relay Error: {e}")
+
     await bot.process_commands(message)
 if __name__ == "__main__":
     Thread(target=run).start()

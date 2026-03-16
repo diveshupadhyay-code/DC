@@ -5,7 +5,7 @@ from flask import Flask
 from threading import Thread
 import os, json
 from dotenv import load_dotenv
-import datetime
+import datetime, time
 import asyncio 
 import random
 from groq import Groq
@@ -15,6 +15,10 @@ user_memories = {}
 active_calls = {}  # {server_id: {'partner_id': id, 'channel_id': id}}
 waiting_list = []  # List of dicts: [{'server_id': id, 'channel_id': id}]
 ai_enabled = True  # By default AI on rahega
+# Dictionary to track active sessions {channel_id: last_interaction_timestamp}
+active_sessions = {} # {channel_id: last_active_timestamp}
+SESSION_TIMEOUT = 300 # 5 minutes (seconds mein)
+
 # --- Database Setup (Channel IDs yaad rakhne ke liye) ---
 DATA_FILE = "settings.json"
 
@@ -521,58 +525,61 @@ async def ai_mode(interaction: discord.Interaction, status: bool):
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user: return
+    if message.author.bot: return
 
-    # --- AFK REMOVAL ---
+    # --- 1. AFK REMOVAL & CHECK (Tera purana logic) ---
     if message.author.id in afk_users:
         del afk_users[message.author.id]
         try:
             new_nick = message.author.display_name.replace("[AFK] ", "")
             await message.author.edit(nick=new_nick)
-        except:
-            pass
-        await message.channel.send(f"Welcome back {message.author.mention}! Aapka AFK hata diya gaya hai.", delete_after=5)
+        except: pass
+        await message.channel.send(f"Welcome back {message.author.mention}!", delete_after=5)
 
-    # --- AFK CHECK ---
     for mention in message.mentions:
         if mention.id in afk_users:
             reason = afk_users[mention.id]
-            await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai. \n**Reason:** {reason}", delete_after=10)
+            await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai.\n**Reason:** {reason}", delete_after=10)
     
-    # --- HEART REACTION LOGIC (Safe Version) ---
-    greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "good afternoon", "good evening", "welcome"]
-    
-    # Hum check kar rahe hain ki kya message mein koi greeting hai
+    # --- 2. HEART REACTION LOGIC (Tera purana logic) ---
+    greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "welcome"]
     if any(word in message.content.lower().split() for word in greetings):
         try:
-            # Ek chota sa delay (0.2 se 0.8 seconds) taaki Discord ko spam na lage
             await asyncio.sleep(random.uniform(0.2, 0.8)) 
             await message.add_reaction("💖")
-        except discord.errors.HTTPException as e:
-            if e.status == 429:
-                print("Rate limit aayi, par Happy ne handle kar liya! 😎")
-            else:
-                pass
-        except:
-            pass
+        except: pass
 
-    # --- AI CHAT LOGIC (With Toggle Check) ---
-    # --- AI CHAT LOGIC (Groq Power) ---
-    if bot.user.mentioned_in(message):
-        if not ai_enabled: 
-            return 
-
-    user_id = message.author.id
-    clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '').strip()
+    # --- 3. AI SESSION LOGIC (NEW HUMAN BEHAVIOR) ---
+    channel_id = message.channel.id
+    current_time = time.time()
     
-    if not clean_prompt: return
+    # Check: Kya bot ko mention kiya ya reply kiya?
+    is_mentioned = bot.user.mentioned_in(message)
+    is_reply_to_bot = False
+    if message.reference and message.reference.message_id:
+        try:
+            replied_msg = await message.channel.fetch_message(message.reference.message_id)
+            if replied_msg.author.id == bot.user.id:
+                is_reply_to_bot = True
+        except: pass
 
-    # 1. User ki memory check (Last 5 exchanges for history)
-    if user_id not in user_memories:
-        user_memories[user_id] = []
+    # Check: Kya session active hai?
+    is_session_active = (channel_id in active_sessions and 
+                         current_time - active_sessions[channel_id] < SESSION_TIMEOUT)
 
-    # 2. Tera Original System Instruction
-    instruction = """You are Happy, a smart Indian guy. 
+    # Trigger: AI tab chalega jab (Mention) OR (Reply) OR (Active Session)
+    if ai_enabled and (is_mentioned or is_reply_to_bot or is_session_active):
+        
+        # Update session time
+        active_sessions[channel_id] = current_time
+        
+        user_id = message.author.id
+        clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '').strip()
+        
+        if clean_prompt:
+            if user_id not in user_memories: user_memories[user_id] = []
+
+            instruction = """You are Happy, a Indian guy. 
 1. Language: Natural Hinglish (Mix of Hindi/English). No forced slangs.
 2. Rule: Give logical, helpful, and sensible answers only. 
 3. Style: Keep it very short (1 line). Chat like a normal person on discord.
@@ -580,55 +587,49 @@ async def on_message(message):
 5. No AI behavior: Don't say "As an AI" or "I'm here to help.
 # Emojis: Use rarely (1-2 max),  No bot-like sparkles."""
 
-    # 3. Context Build Karo (Token saving mode: Only last 6 messages)
-    messages_to_send = [{"role": "system", "content": instruction}]
-    for hist in user_memories[user_id][-6:]:
-        messages_to_send.append(hist)
-    messages_to_send.append({"role": "user", "content": clean_prompt})
+            # Build Context
+            messages_to_send = [{"role": "system", "content": instruction}]
+            for hist in user_memories[user_id][-6:]:
+                messages_to_send.append(hist)
+            messages_to_send.append({"role": "user", "content": clean_prompt})
 
-    try:
-        # Groq API Call (Llama 3.3 70B is Super Smart & Fast)
-        chat_completion = groq_client.chat.completions.create(
-            messages=messages_to_send,
-            model="llama-3.3-70b-versatile",
-            max_tokens=100, # Chote reply = kam token use
-            temperature=0.8
-        )
+            try:
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                # --- TYPING EFFECT ---
+                async with message.channel.typing():
+                    typing_speed = len(clean_prompt) / 10
+                    wait_time = min(random.uniform(2.0, 4.5) + typing_speed, 7.0) # Max 7 sec tak wait karega
+                    await asyncio.sleep(wait_time)
 
-        reply = chat_completion.choices[0].message.content
-        
-        # 4. Memory Update (Restart pe reset ho jayegi - Safe & No Risk)
-        user_memories[user_id].append({"role": "user", "content": clean_prompt})
-        user_memories[user_id].append({"role": "assistant", "content": reply})
+                    chat_completion = groq_client.chat.completions.create(
+                        messages=messages_to_send,
+                        model="llama-3.3-70b-versatile",
+                        max_tokens=100,
+                        temperature=0.7
+                    )
+                    reply = chat_completion.choices[0].message.content
+                    
+                    user_memories[user_id].append({"role": "user", "content": clean_prompt})
+                    user_memories[user_id].append({"role": "assistant", "content": reply})
+                    
+                    await message.reply(reply)
 
-        await message.reply(reply)
+            except Exception as e:
+                print(f"Groq Error: {e}")
 
-    except Exception as e:
-        print(f"Groq Error: {e}")
-        await message.reply("Dimaag ka engine garam ho gaya, thoda ruk ja! 🔌")
-    
-    # --- GLOBAL CALL RELAY (Simple Text Mode) ---
+    # --- 4. GLOBAL CALL RELAY (Tera purana logic) ---
     server_id = message.guild.id
-    
     if server_id in active_calls:
         data = active_calls[server_id]
-        
-        # Check: Sahi channel, not bot, no AI mention
-        if message.channel.id == data['my_channel'] and not message.author.bot and not bot.user.mentioned_in(message):
-            
+        if message.channel.id == data['my_channel'] and not is_mentioned:
             target_channel = bot.get_channel(data['partner_channel'])
-            
             if target_channel:
                 try:
-                    # [Call Icon] [Username]: [Message Content]
-                    # Yahan humne text format set kar diya hai
-                    chat_msg = f"☎️ **{message.author.name}**: {message.content}"
-                    
-                    await target_channel.send(chat_msg)
-                except Exception as e:
-                    print(f"Relay Error: {e}")
+                    await target_channel.send(f"☎️ **{message.author.name}**: {message.content}")
+                except: pass
 
     await bot.process_commands(message)
+
 if __name__ == "__main__":
     Thread(target=run).start()
     bot.run(TOKEN)

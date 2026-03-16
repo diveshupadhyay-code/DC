@@ -2,3 +2,5 @@ discord.py
 google-genai
 python-dotenv
 flask
+groq
+pymongo

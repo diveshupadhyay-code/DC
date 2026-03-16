@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from google import genai
 from flask import Flask
 from threading import Thread
 import os, json
@@ -9,8 +8,10 @@ from dotenv import load_dotenv
 import datetime
 import asyncio 
 import random
+from groq import Groq
 
 afk_users = {}
+user_memories = {}
 active_calls = {}  # {server_id: {'partner_id': id, 'channel_id': id}}
 waiting_list = []  # List of dicts: [{'server_id': id, 'channel_id': id}]
 ai_enabled = True  # By default AI on rahega
@@ -36,9 +37,10 @@ def run():
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-API_KEY = os.getenv('GEMINI_API_KEY')
-client_ai = genai.Client(api_key=API_KEY)
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+groq_client = Groq(api_key=GROQ_API_KEY)
 MODEL_ID = "gemini-2.5-flash"
+# Model name: llama-3.3-70b-versatile (Best balance of speed & smartness)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -555,49 +557,55 @@ async def on_message(message):
             pass
 
     # --- AI CHAT LOGIC (With Toggle Check) ---
+    # --- AI CHAT LOGIC (Groq Power) ---
     if bot.user.mentioned_in(message):
-        # YAHAN CHECK LAGA DIYA HAI
         if not ai_enabled: 
-            return # Agar AI Off hai, toh yahan se bot chup ho jayega
+            return 
 
-        clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '')
+    user_id = message.author.id
+    clean_prompt = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '').strip()
+    
+    if not clean_prompt: return
+
+    # 1. User ki memory check (Last 5 exchanges for history)
+    if user_id not in user_memories:
+        user_memories[user_id] = []
+
+    # 2. Tera Original System Instruction
+    instruction = """Persona: Happy, Indian Street-guy. 
+Tone: Human-like, raw, high-energy, NOT AI.
+Style: Use Hinglish (u, r, n, btw), slangs (Bhai, Yaar, Chill), casual typos, no punctuation.
+Global: Clear for foreigners, 'Desi' soul for Indians. Simple analogies.
+Rule: 1-line reply only. Very short. No 'As an AI' talk. 
+Fillers: hmm, arre, listen, matlab.
+Emojis: Use rarely (1-2 max), only raw ones like 🔥,😂,💀,🫡. No bot-like sparkles."""
+
+    # 3. Context Build Karo (Token saving mode: Only last 6 messages)
+    messages_to_send = [{"role": "system", "content": instruction}]
+    for hist in user_memories[user_id][-6:]:
+        messages_to_send.append(hist)
+    messages_to_send.append({"role": "user", "content": clean_prompt})
+
+    try:
+        # Groq API Call (Llama 3.3 70B is Super Smart & Fast)
+        chat_completion = groq_client.chat.completions.create(
+            messages=messages_to_send,
+            model="llama-3.3-70b-versatile",
+            max_tokens=100, # Chote reply = kam token use
+            temperature=0.8
+        )
+
+        reply = chat_completion.choices[0].message.content
         
-        # Teri purani lambi instruction yahan rahegi (Maine short mein likhi hai)
-        instruction = """Purpose and Goals:
-* Embody the persona of 'Happy', a person from India who speaks in 'Hinglish' (a mix of Hindi and English) with a distinct street accent.
-* Engage users in casual, energetic, and relatable conversations that reflect the vibrant street culture of urban India.
-* Use local slang, idioms, and expressions common in Indian street lingo (e.g., 'Bhai', 'Mast', 'Kya scene hai?').
+        # 4. Memory Update (Restart pe reset ho jayegi - Safe & No Risk)
+        user_memories[user_id].append({"role": "user", "content": clean_prompt})
+        user_memories[user_id].append({"role": "assistant", "content": reply})
 
-Behaviors and Rules:
+        await message.reply(reply)
 
-1) Language and Dialect:
- a) Primarily use Hinglish, blending English vocabulary with Hindi grammar and colloquialisms.
- b) Adopt a 'street accent' which is informal, rhythmic, and high-energy.
- c) Avoid overly formal or academic language. Keep it raw and authentic.
-
-2) Interaction Style:
- a) Greet users with local informal greetings like 'Arre, kya haal hai?' or 'Yo, what's up, mere bhai?'.
- b) Be expressive and use common fillers like 'yaar', 'bas', or 'woh'.
- c) If a user asks a complex question, explain it using simple, everyday analogies relevant to Indian life.
-
-3) Cultural Context:
- a) Reference popular Indian street food, movies, cricket, and daily life experiences to add flavor to the conversation.
- b) Maintain a friendly, slightly cheeky, and very approachable vibe.
-
-Overall Tone:
-
-* Informal, street-smart, and friendly.
-* High energy and conversational.
-* Authentic to the 'tapori' or urban street vibe of India..
-* make your replies short like chatting messages (such as 1 line reply).""" 
-        
-        try:
-            response = client_ai.models.generate_content(model=MODEL_ID, contents=f"Instruction: {instruction}\n\nUser: {clean_prompt}")
-            if response and response.text: 
-                await message.reply(response.text)
-        except Exception as e:
-            print(f"Error: {e}")
-            await message.reply("Dimaag garam hai bhai, thoda rest lene de!")
+    except Exception as e:
+        print(f"Groq Error: {e}")
+        await message.reply("Dimaag ka engine garam ho gaya, thoda ruk ja! 🔌")
     
     # --- GLOBAL CALL RELAY (Simple Text Mode) ---
     server_id = message.guild.id

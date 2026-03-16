@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
 from google import genai
 from flask import Flask
 from threading import Thread
@@ -368,6 +369,40 @@ async def echo(interaction: discord.Interaction, message: str, channel: discord.
         )
     except Exception as e:
         await interaction.response.send_message(f"❌ Kuch locha ho gaya: {e}", ephemeral=True)
+
+# --- MIMIC / TUPPERBOX COMMAND ---
+@bot.tree.command(name="mimic", description="Kisi aur ke naam se message bhejein (Admin Only)")
+@app_commands.describe(user="Kise copy karna hai?", message="Kya bulwana hai?")
+@app_commands.checks.has_permissions(administrator=True) # Sirf Admins ke liye
+async def mimic(interaction: discord.Interaction, user: discord.Member, message: str):
+    # Pehle response ko defer kar do taaki 'Bot is thinking' dikhe aur gayab ho jaye
+    await interaction.response.defer(ephemeral=True)
+
+    channel = interaction.channel
+    
+    # 1. Check karo ki kya channel mein pehle se hamara koi webhook hai
+    webhooks = await channel.webhooks()
+    webhook = discord.utils.get(webhooks, name="HappyMimic")
+    
+    # 2. Agar nahi hai, toh naya banao
+    if webhook is None:
+        webhook = await channel.create_webhook(name="HappyMimic")
+
+    # 3. Webhook ke zariye message bhejo (User ki PFP aur Name ke saath)
+    await webhook.send(
+        content=message,
+        username=user.display_name,
+        avatar_url=user.display_avatar.url
+    )
+
+    # 4. Moderator ko confirmation de do
+    await interaction.followup.send(f"Done! {user.display_name} ban kar message bhej diya.", ephemeral=True)
+
+# Error Handling (Agar koi bina permission ke chalaye)
+@mimic.error
+async def mimic_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("Bhai, ye bade logon ka kaam hai. Aapke paas permissions nahi hain! ❌", ephemeral=True)
 
 # 1. USER INFO: Kisi bhi member ki detail nikalne ke liye
 @bot.tree.command(name="userinfo", description="Kisi bhi bande ki kundli nikaalo")

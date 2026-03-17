@@ -6,6 +6,8 @@ from threading import Thread
 import os, json
 from dotenv import load_dotenv
 import datetime, time
+import pytz # timezone ke liye
+from datetime import datetime
 import asyncio 
 import random
 from groq import Groq
@@ -18,6 +20,7 @@ ai_enabled = True  # By default AI on rahega
 # Dictionary to track active sessions {channel_id: last_interaction_timestamp}
 active_sessions = {} # {channel_id: last_active_timestamp}
 SESSION_TIMEOUT = 300 # 5 minutes (seconds mein)
+
 
 # --- Database Setup (Channel IDs yaad rakhne ke liye) ---
 DATA_FILE = "settings.json"
@@ -527,6 +530,12 @@ async def ai_mode(interaction: discord.Interaction, status: bool):
 async def on_message(message):
     if message.author.bot: return
 
+    # --- Yahan fresh time nikaalo ---
+    IST = pytz.timezone('Asia/Kolkata')
+    dt_now = datetime.now(IST)
+    readable_time = dt_now.strftime("%I:%M %p")
+    readable_date = dt_now.strftime("%d %B %Y")
+
     # --- 1. AFK REMOVAL & CHECK (Tera purana logic) ---
     if message.author.id in afk_users:
         del afk_users[message.author.id]
@@ -579,13 +588,15 @@ async def on_message(message):
         if clean_prompt:
             if user_id not in user_memories: user_memories[user_id] = []
 
-            instruction = """You are Happy, a Indian guy. 
+            instruction = f"""You are Happy, a Indian guy. 
 1. Language: Natural Hinglish (Mix of Hindi/English). No forced slangs.
 2. Rule: Give logical, helpful, and sensible answers only. 
 3. Style: Keep it very short (1 line). Chat like a normal person on discord.
 4. Persona: Friendly but not stupid. If a question is serious, answer it simply. 
 5. No AI behavior: Don't say "As an AI" or "I'm here to help.
-# Emojis: Use rarely (1-2 max),  No bot-like sparkles."""
+# Emojis: Use rarely (1-2 max),  No bot-like sparkles.
+# Current Date: {readable_date}
+Current Time: {readable_time}"""
 
             # Build Context
             messages_to_send = [{"role": "system", "content": instruction}]

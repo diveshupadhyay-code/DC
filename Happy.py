@@ -6,10 +6,14 @@ from threading import Thread
 import os, json
 from dotenv import load_dotenv
 import pytz # timezone ke liye
-from datetime import datetime, time
+import time  # Isse time.time() chalega
+import datetime
+from datetime import datetime # Isse datetime.now() chalega
 import asyncio 
 import random
 from groq import Groq
+import pymongo
+from pymongo import MongoClient
 
 afk_users = {}
 user_memories = {}
@@ -21,17 +25,26 @@ active_sessions = {} # {channel_id: last_active_timestamp}
 SESSION_TIMEOUT = 300 # 5 minutes (seconds mein)
 
 
-# --- Database Setup (Channel IDs yaad rakhne ke liye) ---
-DATA_FILE = "settings.json"
+# --- MongoDB Setup ---
+# Render ke Environment Variables mein MONGO_URL set karna (Tera link password ke saath)
+MONGO_URL = os.getenv("MONGO_URL") 
+cluster = MongoClient(MONGO_URL)
+db = cluster["HappyBotDB"]
+settings_col = db["server_settings"] # Collection for Welcome/Bye IDs
 
-def load_settings():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f: return json.load(f)
-    return {"welcome_channel": None, "bye_channel": None}
+# --- Updated Database Functions (No more JSON!) ---
+def get_server_data(server_id):
+    # MongoDB se server ka data nikaalne ke liye
+    data = settings_col.find_one({"_id": str(server_id)})
+    return data if data else {}
 
-def save_settings(data):
-    with open(DATA_FILE, "w") as f: json.dump(data, f)
-
+def update_server_data(server_id, key, value):
+    # MongoDB mein data save ya update karne ke liye
+    settings_col.update_one(
+        {"_id": str(server_id)},
+        {"$set": {key: value}},
+        upsert=True # Agar server pehle se nahi hai toh naya bana dega
+    )
 # --- Flask & AI Setup (Tera Original) ---
 app = Flask('')
 @app.route('/')
@@ -97,31 +110,20 @@ async def on_ready():
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
 # --- Ye naya logic har server ka data alag rakhega ---
 
+# --- Updated Admin Commands ---
 @bot.tree.command(name="setwelcome", description="Is server ka welcome channel set karo")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 async def setwelcome(interaction: discord.Interaction, channel: discord.TextChannel):
-    settings = load_settings()
-    server_id = str(interaction.guild.id) # Server ki ID lo
-    
-    if server_id not in settings:
-        settings[server_id] = {}
-        
-    settings[server_id]["welcome"] = channel.id
-    save_settings(settings)
-    await interaction.response.send_message(f"✅ Is server ka welcome channel ab {channel.mention} hai!")
+    server_id = interaction.guild.id
+    update_server_data(server_id, "welcome_channel", channel.id)
+    await interaction.response.send_message(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge. (Cloud Saved ☁️)")
 
 @bot.tree.command(name="setbye", description="Is server ka bye channel set karo")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 async def setbye(interaction: discord.Interaction, channel: discord.TextChannel):
-    settings = load_settings()
-    server_id = str(interaction.guild.id)
-    
-    if server_id not in settings:
-        settings[server_id] = {}
-        
-    settings[server_id]["bye"] = channel.id
-    save_settings(settings)
-    await interaction.response.send_message(f"✅ Is server ka bye channel ab {channel.mention} hai!")
+    server_id = interaction.guild.id
+    update_server_data(server_id, "bye_channel", channel.id)
+    await interaction.response.send_message(f"✅ Done! Bye messages {channel.mention} mein set ho gaye hain. (Cloud Saved ☁️)")
 
 # 1. KICK MEMBER
 @bot.tree.command(name="kick", description="Kisi ko dhakke maar ke nikaalo")
@@ -459,15 +461,12 @@ async def help_command(interaction: discord.Interaction):
 
 @bot.event
 async def on_member_join(member):
-    settings = load_settings()
-    server_id = str(member.guild.id)
-    
-    # Channel fetch logic (Settings se ya default system channel)
-    channel_id = settings.get(server_id, {}).get("welcome")
-    channel = bot.get_channel(channel_id) if channel_id else member.guild.system_channel
+    data = get_server_data(member.guild.id)
+    channel_id = data.get("welcome_channel")
+    channel = bot.get_channel(channel_id) or member.guild.system_channel
     
     if channel:
-    
+        # Tera pasandida minimalist banner link
         welcome_banner = "https://media.discordapp.net/attachments/1487601910465953965/1488790037398032476/you_can_use_this_as_a_discord_welcome_image_i_dont_really_care_anymore.jpg?ex=69ce0f45&is=69ccbdc5&hm=4f5e1d0eab273e555d20807cf97ddfca511c877d1ebbe247462c393a2a382d46&=&format=webp&width=583&height=561" 
 
         # --- MINIMALIST EMBED ---
@@ -478,15 +477,12 @@ async def on_member_join(member):
         await channel.send(
             content=f"Oye hoye! Swagat karo **{member.mention}** ka! 🔥\n", 
             embed=embed
-        )
-        
+        )        
+
 @bot.event
 async def on_member_remove(member):
-    settings = load_settings()
-    server_id = str(member.guild.id)
-    
-    # Specific bye channel check karega server ID ke hisaab se
-    channel_id = settings.get(server_id, {}).get("bye")
+    data = get_server_data(member.guild.id)
+    channel_id = data.get("bye_channel")
     channel = bot.get_channel(channel_id)
     
     if channel:
@@ -505,6 +501,7 @@ async def on_member_remove(member):
             content=f"Alvida **{member.name}**! 👋\nUmeed hai phir milenge... (Ya phir nahi? 😂)", 
             embed=embed
         )
+
 # AFK SLASH COMMAND
 @bot.tree.command(name="afk", description="AFK set karo taaki log pareshan na karein")
 async def afk(interaction: discord.Interaction, reason: str = "Break le raha hoon!"):

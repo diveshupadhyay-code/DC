@@ -5,9 +5,8 @@ from flask import Flask
 from threading import Thread
 import os, json
 from dotenv import load_dotenv
-import datetime, time
 import pytz # timezone ke liye
-from datetime import datetime
+from datetime import datetime, time
 import asyncio 
 import random
 from groq import Groq
@@ -39,7 +38,7 @@ app = Flask('')
 def home(): return "Happy is Online!"
 
 def run():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
 load_dotenv()

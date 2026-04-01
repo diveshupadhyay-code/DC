@@ -491,21 +491,21 @@ async def on_member_remove(member):
     channel = bot.get_channel(channel_id)
     
     if channel:
-        embed = discord.Embed(
-            title="Goodbye! 👋",
-            description=f"**{member.name}** has left the server. We're sorry to see you go!",
-            color=0x2B2D31 # Glassy Look (Discord Dark Theme)
-        )
-        
-        # User ki info aur image
-        embed.set_author(name="Member Left", icon_url=member.display_avatar.url)
-        embed.set_thumbnail(url=member.display_avatar.url)
-        
-        # Footer mein total members dikhayega
-        embed.set_footer(text=f"Current Members: {member.guild.member_count}")
-        
-        await channel.send(embed=embed)
+        # Ek cool "Sad/Bye" banner link (Tu ise replace kar sakta hai)
+        bye_banner = "https://media.discordapp.net/attachments/1487601910465953965/1488803367655575642/fa5ae4001ba27d38.jpg?ex=69ce1baf&is=69ccca2f&hm=7f155ea09d332daeb8e081bc5d4691775ef8f67f3534c10e357124f0e4ba1a6a&=&format=webp"
 
+        # --- MINIMALIST BYE EMBED ---
+        embed = discord.Embed(color=0x2b2d31) # Dark Theme match
+        embed.set_image(url=bye_banner)
+        
+        # Footer mein total members dikhayega taaki pata chale ab kitne bache hain
+        embed.set_footer(text=f"Total Members Left: {member.guild.member_count}")
+
+        # Text content embed ke upar (Tag nahi kar rahe kyunki wo ja chuka hai)
+        await channel.send(
+            content=f"Alvida **{member.name}**! 👋\nUmeed hai phir milenge... (Ya phir nahi? 😂)", 
+            embed=embed
+        )
 # AFK SLASH COMMAND
 @bot.tree.command(name="afk", description="AFK set karo taaki log pareshan na karein")
 async def afk(interaction: discord.Interaction, reason: str = "Break le raha hoon!"):

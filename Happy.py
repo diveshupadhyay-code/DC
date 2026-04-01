@@ -463,17 +463,24 @@ async def on_member_join(member):
     settings = load_settings()
     server_id = str(member.guild.id)
     
-    # Check karo ki is server ki ID settings mein hai ya nahi
+    # Channel fetch logic (Settings se ya default system channel)
     channel_id = settings.get(server_id, {}).get("welcome")
     channel = bot.get_channel(channel_id) if channel_id else member.guild.system_channel
     
     if channel:
-        # Tera purana glassy embed logic...
-        embed = discord.Embed(description=f"Welcome to the server, {member.mention}! 🎉", color=0x2B2D31)
-        embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-        embed.set_image(url=member.display_avatar.url)
-        await channel.send(embed=embed)
+    
+        welcome_banner = "https://media.discordapp.net/attachments/1487601910465953965/1488790037398032476/you_can_use_this_as_a_discord_welcome_image_i_dont_really_care_anymore.jpg?ex=69ce0f45&is=69ccbdc5&hm=4f5e1d0eab273e555d20807cf97ddfca511c877d1ebbe247462c393a2a382d46&=&format=webp&width=583&height=561" 
 
+        # --- MINIMALIST EMBED ---
+        embed = discord.Embed(color=0x2b2d31) # Dark Aesthetic Theme
+        embed.set_image(url=welcome_banner)
+        
+        # Mention aur message embed ke upar aayega
+        await channel.send(
+            content=f"Oye hoye! Swagat karo **{member.mention}** ka! 🔥\n", 
+            embed=embed
+        )
+        
 @bot.event
 async def on_member_remove(member):
     settings = load_settings()

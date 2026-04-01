@@ -4,3 +4,4 @@ python-dotenv
 flask
 groq
 pytz
+pymongo[srv]

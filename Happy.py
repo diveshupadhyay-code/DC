@@ -12,8 +12,7 @@ from datetime import datetime # Isse datetime.now() chalega
 import asyncio 
 import random
 from groq import Groq
-import pymongo
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
 afk_users = {}
 user_memories = {}
@@ -28,23 +27,24 @@ SESSION_TIMEOUT = 300 # 5 minutes (seconds mein)
 # --- MongoDB Setup ---
 # Render ke Environment Variables mein MONGO_URL set karna (Tera link password ke saath)
 MONGO_URL = os.getenv("MONGO_URL") 
-cluster = MongoClient(MONGO_URL)
+cluster = AsyncIOMotorClient(MONGO_URL)
 db = cluster["HappyBotDB"]
 settings_col = db["server_settings"] # Collection for Welcome/Bye IDs
 
-# --- Updated Database Functions (No more JSON!) ---
-def get_server_data(server_id):
-    # MongoDB se server ka data nikaalne ke liye
-    data = settings_col.find_one({"_id": str(server_id)})
+async def get_server_data(server_id):
+    # .find_one() ke pehle await zaroori hai
+    data = await settings_col.find_one({"_id": str(server_id)})
     return data if data else {}
 
-def update_server_data(server_id, key, value):
-    # MongoDB mein data save ya update karne ke liye
-    settings_col.update_one(
+async def update_server_data(server_id, key, value):
+    # .update_one() ke pehle bhi await lagao
+    await settings_col.update_one(
         {"_id": str(server_id)},
         {"$set": {key: value}},
-        upsert=True # Agar server pehle se nahi hai toh naya bana dega
+        upsert=True
     )
+
+    
 # --- Flask & AI Setup (Tera Original) ---
 app = Flask('')
 @app.route('/')
@@ -114,16 +114,24 @@ async def on_ready():
 @bot.tree.command(name="setwelcome", description="Is server ka welcome channel set karo")
 @app_commands.checks.has_permissions(administrator=True)
 async def setwelcome(interaction: discord.Interaction, channel: discord.TextChannel):
+    # 1. Sabse pehle ye line dalo (Ye 3 second ki limit ko 15 mins kar degi)
+    await interaction.response.defer(ephemeral=True) 
+
     server_id = interaction.guild.id
-    update_server_data(server_id, "welcome_channel", channel.id)
-    await interaction.response.send_message(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge.")
+    
+    # 2. Ab MongoDB ka slow kaam hone do
+    await update_server_data(server_id, "welcome_channel", channel.id)
+    
+    # 3. Ab response bhejne ke liye followup use karo (kyunki defer ho chuka hai)
+    await interaction.followup.send(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge.")
 
 @bot.tree.command(name="setbye", description="Is server ka bye channel set karo")
 @app_commands.checks.has_permissions(administrator=True)
 async def setbye(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True)
     server_id = interaction.guild.id
-    update_server_data(server_id, "bye_channel", channel.id)
-    await interaction.response.send_message(f"✅ Done! Bye messages {channel.mention} mein set ho gaye hain.")
+    await update_server_data(server_id, "bye_channel", channel.id)
+    await interaction.followup.send(f"✅ Done! Bye messages {channel.mention} mein set ho gaye hain.")
 
 # 1. KICK MEMBER
 @bot.tree.command(name="kick", description="Kisi ko dhakke maar ke nikaalo")

@@ -443,18 +443,40 @@ async def stats(interaction: discord.Interaction):
     embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
     await interaction.response.send_message(embed=embed)
 
-# 4. HELP: Bot kya-kya kar sakta hai
-@bot.tree.command(name="help", description="Happy ki shaktiyon ki list")
+# 4. HELP: Bot kya-kya kar sakta hai (Updated & Clean)
+@bot.tree.command(name="help", description="Happy ki saari shaktiyon ki list")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🤖 Happy Help Menu",
-        description="Bhai, main yahan sabka swagat karne aur thodi masti karne ke liye hoon!",
+        title="🤖 Happy - Help Menu",
+        description="Oye! Main Happy hoon, tera AI dost. Mere paas kaafi saari powers hain, dekh lo:",
         color=0x2B2D31
     )
-    embed.add_field(name="🌍 Global Commands", value="`/afk`, `/userinfo`, `/avatar`, `/stats`, `/ping`", inline=False)
-    embed.add_field(name="🧠 AI Chat", value="Bas mujhe mention karo (`@Happy`) aur kuch bhi pucho, jawab milega!", inline=False)
-    embed.add_field(name="🛡️ Admin Only", value="`/kick`, `/ban`, `/mute`, `/setwelcome`, `/setbye`, `/role`, `/warn`", inline=False)
-    embed.set_footer(text="Developed by the 💖")
+    
+    # AI Chatting
+    embed.add_field(
+        name="🧠 AI Chatting", 
+        value="Mujhe mention karo (`@Happy`) ya reply do.", 
+        inline=False
+    )
+    
+    # Utility & Fun
+    embed.add_field(
+        name="🌍 Global & Fun", 
+        value="`/afk` - Break pe jao\n`/call` - Dusre server se connect karo ☎️\n`/userinfo` - Kundli nikaalo\n`/avatar` - DP dekho\n`/ping` - Speed check karo", 
+        inline=False
+    )
+    
+    # Moderation & Admin (Added Announcement & Mimic)
+    embed.add_field(
+        name="🛡️ Admin Only", 
+        value="`/announce` - Server mein bada elaan karo 📢\n`/giveaway` - Prize baanto 🎁\n`/mimic` - Kisi ka roop dharo 🎭\n`/kick`, `/ban`, `/mute`, `/warn` - Server control karo\n`/setwelcome` & `/setbye` - Channels set karo", 
+        inline=False
+    )
+
+    # Footer
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.set_footer(text="Made with ❤️ | Use / commands to start")
+    
     await interaction.response.send_message(embed=embed)
 
 # --- WELCOME EVENT (Glassy Embed) ---

@@ -116,14 +116,14 @@ async def on_ready():
 async def setwelcome(interaction: discord.Interaction, channel: discord.TextChannel):
     server_id = interaction.guild.id
     update_server_data(server_id, "welcome_channel", channel.id)
-    await interaction.response.send_message(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge. (Cloud Saved ☁️)")
+    await interaction.response.send_message(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge.")
 
 @bot.tree.command(name="setbye", description="Is server ka bye channel set karo")
 @app_commands.checks.has_permissions(administrator=True)
 async def setbye(interaction: discord.Interaction, channel: discord.TextChannel):
     server_id = interaction.guild.id
     update_server_data(server_id, "bye_channel", channel.id)
-    await interaction.response.send_message(f"✅ Done! Bye messages {channel.mention} mein set ho gaye hain. (Cloud Saved ☁️)")
+    await interaction.response.send_message(f"✅ Done! Bye messages {channel.mention} mein set ho gaye hain.")
 
 # 1. KICK MEMBER
 @bot.tree.command(name="kick", description="Kisi ko dhakke maar ke nikaalo")

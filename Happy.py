@@ -491,7 +491,7 @@ async def help_command(interaction: discord.Interaction):
 
 @bot.event
 async def on_member_join(member):
-    data = get_server_data(member.guild.id)
+    data = await get_server_data(member.guild.id)
     channel_id = data.get("welcome_channel")
     channel = bot.get_channel(channel_id) or member.guild.system_channel
     
@@ -511,7 +511,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_member_remove(member):
-    data = get_server_data(member.guild.id)
+    data = await get_server_data(member.guild.id)
     channel_id = data.get("bye_channel")
     channel = bot.get_channel(channel_id)
     

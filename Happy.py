@@ -108,11 +108,19 @@ async def on_ready():
         print(e)
 
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
+def is_admin_or_owner():
+    async def predicate(interaction: discord.Interaction):
+        owner_id = 876629015144828939  # Apni ID yahan dalo
+        # Agar user owner hai OR uske paas admin permission hai
+        return interaction.user.id == owner_id or interaction.user.guild_permissions.administrator
+    return app_commands.check(predicate)
+
 # --- Ye naya logic har server ka data alag rakhega ---
 
 # --- Updated Admin Commands ---
 @bot.tree.command(name="setwelcome", description="Is server ka welcome channel set karo")
-@app_commands.checks.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @app_commands.checks.has_permissions(administrator=True)
 async def setwelcome(interaction: discord.Interaction, channel: discord.TextChannel):
     # 1. Sabse pehle ye line dalo (Ye 3 second ki limit ko 15 mins kar degi)
     await interaction.response.defer(ephemeral=True) 
@@ -673,6 +681,16 @@ Current Time: {readable_time}"""
                 except: pass
 
     await bot.process_commands(message)
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message("❌ Bhai, Admin permission chahiye iske liye!", ephemeral=True)
+    else:
+        # Agar koi aur error hai toh uska msg dikhao
+        print(f"Log Error: {error}") # Logs mein bhi dikhega par bot crash nahi hoga
+        if not interaction.response.is_done():
+            await interaction.response.send_message(f"⚠️ Error: `{error}`", ephemeral=True)
 
 if __name__ == "__main__":
     Thread(target=run).start()

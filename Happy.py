@@ -585,6 +585,10 @@ async def ai_mode(interaction: discord.Interaction, status: bool):
 @bot.event
 async def on_message(message):
     if message.author.bot: return
+    if message.mention_everyone: return
+    if len(message.content) < 2: return
+    if message.content.startswith(('!', '.', '?', '/', '$','@')): return
+    if "http" in message.content.lower() or "discord.gg" in message.content.lower(): return
 
     # --- Yahan fresh time nikaalo ---
     IST = pytz.timezone('Asia/Kolkata')

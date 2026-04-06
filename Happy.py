@@ -110,11 +110,25 @@ async def on_ready():
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
 def is_admin_or_owner():
     async def predicate(interaction: discord.Interaction):
-        owner_id = 876629015144828939  # Apni ID yahan dalo
+        owner_id = 876629015144828939  
         # Agar user owner hai OR uske paas admin permission hai
         return interaction.user.id == owner_id or interaction.user.guild_permissions.administrator
     return app_commands.check(predicate)
-
+    
+def owner_is_present():
+    async def predicate(interaction: discord.Interaction):
+        owner_id = 876629015144828939  
+        
+        # Server ke members mein tumhe dhund raha hai
+        owner_in_server = interaction.guild.get_member(owner_id)
+        
+        if owner_in_server:
+            return True
+        else:
+            # Agar tum server mein nahi ho, toh ye error fekega
+            raise app_commands.AppCommandError("Bhai, mere asli maalik is server mein nahi hain, toh main kaam nahi karunga!")
+            
+    return app_commands.check(predicate)
 # --- Ye naya logic har server ka data alag rakhega ---
 
 # --- Updated Admin Commands ---
@@ -554,6 +568,7 @@ async def afk(interaction: discord.Interaction, reason: str = "Break le raha hoo
 
 # --- AI CHAT LOGIC (Tera Pura Original Instruction) ---
 @bot.tree.command(name="ai_mode", description="AI Chat ko ON ya OFF karo")
+@owner_is_present()
 @commands.has_permissions(administrator=True)
 async def ai_mode(interaction: discord.Interaction, status: bool):
     global ai_enabled

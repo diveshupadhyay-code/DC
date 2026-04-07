@@ -8,13 +8,13 @@ from dotenv import load_dotenv
 import pytz # timezone ke liye
 import time  # Isse time.time() chalega
 import datetime
-from datetime import datetime # Isse datetime.now() chalega
+from datetime import datetime, timedelta, timezone 
 import asyncio 
 import random
 from groq import Groq
 from motor.motor_asyncio import AsyncIOMotorClient
 
-afk_users = {}
+# MongoDB collection variable
 user_memories = {}
 active_calls = {}  # {server_id: {'partner_id': id, 'channel_id': id}}
 waiting_list = []  # List of dicts: [{'server_id': id, 'channel_id': id}]
@@ -30,6 +30,10 @@ MONGO_URL = os.getenv("MONGO_URL")
 cluster = AsyncIOMotorClient(MONGO_URL)
 db = cluster["HappyBotDB"]
 settings_col = db["server_settings"] # Collection for Welcome/Bye IDs
+warns_col = db["warnings"] 
+afk_col = db["afk_users"] 
+sticky_col = db["sticky_messages"]
+sticky_counter = {}
 
 async def get_server_data(server_id):
     # .find_one() ke pehle await zaroori hai
@@ -106,7 +110,15 @@ async def on_ready():
         print(f"Synced {len(synced)} commands!")
     except Exception as e:
         print(e)
-
+#functions
+def get_color(color_str):
+    try:
+        # Agar user ne Hex code diya hai (e.g. #00ff00)
+        return discord.Color.from_str(color_str)
+    except:
+        # Default color agar code galat ho
+        return discord.Color.blue()
+    
 # --- ADMIN COMMANDS: Channel Choose Karne Ke Liye ---
 def is_admin_or_owner():
     async def predicate(interaction: discord.Interaction):
@@ -148,7 +160,8 @@ async def setwelcome(interaction: discord.Interaction, channel: discord.TextChan
     await interaction.followup.send(f"✅ Done bhai! Welcome messages ab {channel.mention} mein aayenge.")
 
 @bot.tree.command(name="setbye", description="Is server ka bye channel set karo")
-@app_commands.checks.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @app_commands.checks.has_permissions(administrator=True)
 async def setbye(interaction: discord.Interaction, channel: discord.TextChannel):
     await interaction.response.defer(ephemeral=True)
     server_id = interaction.guild.id
@@ -186,7 +199,8 @@ async def mute(interaction: discord.Interaction, member: discord.Member, minutes
 
 # 4. ASSIGN/REMOVE ROLE
 @bot.tree.command(name="role", description="Role dena ya lena")
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def role(interaction: discord.Interaction, member: discord.Member, role: discord.Role):
     if role in member.roles:
         await member.remove_roles(role)
@@ -196,19 +210,58 @@ async def role(interaction: discord.Interaction, member: discord.Member, role: d
         await interaction.response.send_message(f"✅ {role.name} role {member.name} ko de diya gaya.")
 
 # 5. WARNING (Simple message warning)
-@bot.tree.command(name="warn", description="Member ko warning do")
-@commands.has_permissions(administrator=True)
-async def warn(interaction: discord.Interaction, member: discord.Member, reason: str):
+@bot.tree.command(name="warn", description="Kisi member ko warning do")
+@app_commands.checks.has_permissions(administrator=True)
+async def warn(interaction: discord.Interaction, member: discord.Member, reason: str = "Koi reason nahi diya"):
+    await interaction.response.defer() # Slow network ke liye safety
+    
+    server_id = str(interaction.guild.id)
+    user_id = str(member.id)
+
+    # 1. Database se purani warnings nikalo (Yahan MongoDB use ho raha hai)
+    # Humein ek naya collection chahiye hoga, let's call it 'warns_col'
+    user_data = await warns_col.find_one({"server_id": server_id, "user_id": user_id})
+    
+    if user_data:
+        new_count = user_data["count"] + 1
+        await warns_col.update_one({"_id": user_data["_id"]}, {"$set": {"count": new_count}})
+    else:
+        new_count = 1
+        await warns_col.insert_one({"server_id": server_id, "user_id": user_id, "count": 1})
+
+    # 2. Ek Kadak Embed banao
     embed = discord.Embed(
-        title="⚠️ Warning Alert!",
-        description=f"Oye {member.mention}, sudhar ja! \n**Reason:** {reason}",
-        color=discord.Color.red()
+        title="⚠️ Official Warning Issued",
+        description=f"Oye {member.mention}, teri harkatein theek nahi lag rahi!",
+        color=discord.Color.from_rgb(255, 0, 0), # Pure Red
+        timestamp=datetime.now()
     )
-    await interaction.response.send_message(content=f"{member.mention}", embed=embed)
+    embed.add_field(name="👤 Member", value=member.name, inline=True)
+    embed.add_field(name="👮 Warned By", value=interaction.user.name, inline=True)
+    embed.add_field(name="📊 Total Warnings", value=f"**{new_count}**", inline=False)
+    embed.add_field(name="📄 Reason", value=f"```{reason}```", inline=False)
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.set_footer(text="Sudhar jao warna sidha BAN milega! 😎")
+
+    # 3. Chat mein reply do
+    await interaction.followup.send(content=f"Dhyan se dekhle {member.mention}!", embed=embed)
+
+    # 4. Bande ko DM karo (Private Message)
+    try:
+        dm_embed = discord.Embed(
+            title=f"Tumhe {interaction.guild.name} mein Warn kiya gaya hai!",
+            description=f"Sudhar jao bhai, ye tumhari **Warning #{new_count}** hai.\n**Reason:** {reason}",
+            color=discord.Color.orange()
+        )
+        await member.send(embed=dm_embed)
+    except:
+        # Agar bande ke DM band hain toh bot crash nahi hoga
+        pass
 
 # --- CALL COMMAND (Matchmaking) ---
 @bot.tree.command(name="call", description="Isi channel ko dusre server se connect karein")
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def call(interaction: discord.Interaction):
     global waiting_list
     server_id = interaction.guild.id
@@ -247,7 +300,8 @@ async def call(interaction: discord.Interaction):
 
 # --- HANGUP COMMAND (Error Proof) ---
 @bot.tree.command(name="hangup", description="Call khatam karein ya waiting list se hatein")
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def hangup(interaction: discord.Interaction):
     global waiting_list
     server_id = interaction.guild.id
@@ -291,7 +345,8 @@ async def hangup(interaction: discord.Interaction):
 
 # ANNOUNCEMENT & EVENT PING COMMAND
 @bot.tree.command(name="announce", description="Server mein event ya koi bada announcement karo")
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def announce(
     interaction: discord.Interaction, 
     title: str, 
@@ -317,55 +372,73 @@ async def announce(
     await target_channel.send(content=content, embed=embed)
     await interaction.response.send_message(f"✅ Announcement {target_channel.mention} mein bhej di gayi hai!", ephemeral=True)
 
-@bot.tree.command(name="giveaway", description="Server mein giveaway start karo")
-@commands.has_permissions(administrator=True)
+@bot.tree.command(name="giveaway", description="Server mein professional giveaway start karo")
+@app_commands.checks.has_permissions(administrator=True)
 async def giveaway(
     interaction: discord.Interaction, 
     prize: str, 
     duration_minutes: int, 
     winners_count: int = 1
 ):
-    # Time calculate karne ke liye
-    end_time = discord.utils.utcnow() + datetime.timedelta(minutes=duration_minutes)
+    # 1. Countdown Timer (Discord style: <t:timestamp:R>)
+    end_time = datetime.now() + timedelta(minutes=duration_minutes)
+    timestamp = int(end_time.timestamp())
     
     embed = discord.Embed(
         title="🎁 NEW GIVEAWAY! 🎁",
-        description=f"Prize: **{prize}**\nReact with 🎉 to enter!\n\n**Winners:** {winners_count}\n**Ends in:** {duration_minutes} Minutes",
-        color=0x2B2D31
+        description=(
+            f"Bhaiyo aur unki Behno, **{prize}** ka giveaway shuru ho gaya hai!\n\n"
+            f"🎉 React karo enter karne ke liye!\n"
+            f"🏆 Winners: **{winners_count}**\n"
+            f"⏰ Khatam hoga: <t:{timestamp}:R> (<t:{timestamp}:f>)"
+        ),
+        color=0x00FF00 # Green for start
     )
-    embed.set_footer(text=f"Ends at {end_time.strftime('%H:%M:%S UTC')}")
-    
-    # Message bhejna aur reaction add karna
-    await interaction.response.send_message(f"✅ Giveaway started for **{prize}**!", ephemeral=True)
+    embed.set_thumbnail(url="https://media.discordapp.net/attachments/1487601910465953965/1490827440178598090/Giveaway_Design_Template_Pink_Neon_Light_Background_Vector_Illustration_Advert_Coupon_Deal_Background_Image_And_Wallpaper_for_Free_Download.jpg?ex=69d578bf&is=69d4273f&hm=235fcd14cceb85238793605d5ad1b6982cd946f4e8c80079485fc43652f6fef1&=&format=webp") # Giveaway icon
+    embed.set_footer(text=f"Hosted by {interaction.user.name}")
+
+    # 2. Giveaway Message bhejna
+    await interaction.response.send_message(f"✅ Giveaway for **{prize}** is live!", ephemeral=True)
     msg = await interaction.channel.send(embed=embed)
     await msg.add_reaction("🎉")
 
-    # Wait karna jab tak timer khatam na ho
+    # 3. Database mein save karo (Taaki restart par yaad rahe)
+    # giveaway_data = {"msg_id": msg.id, "channel_id": msg.channel.id, "end_time": end_time, "prize": prize, "winners": winners_count}
+    # await db.giveaways.insert_one(giveaway_data)
+
+    # 4. Timer (Abhi ke liye sleep use kar rahe hain, par long term ke liye 'tasks' best hain)
     await asyncio.sleep(duration_minutes * 60)
 
-    # Naya message fetch karna taaki reactions dekh sakein
-    new_msg = await interaction.channel.fetch_message(msg.id)
-    users = []
-    
-    for reaction in new_msg.reactions:
-        if str(reaction.emoji) == "🎉":
-            async for user in reaction.users():
-                if not user.bot:
-                    users.append(user)
-
-    # Winner announce karna
-    if len(users) > 0:
-        winners = random.sample(users, min(len(users), winners_count))
-        winner_mentions = ", ".join([w.mention for w in winners])
+    # 5. Winner Selection Logic
+    try:
+        new_msg = await interaction.channel.fetch_message(msg.id)
+        reaction = next((r for r in new_msg.reactions if str(r.emoji) == "🎉"), None)
         
-        win_embed = discord.Embed(
-            title="🎊 GIVEAWAY ENDED 🎊",
-            description=f"Prize: **{prize}**\n\n**Winner(s):** {winner_mentions}",
-            color=0x2B2D31
-        )
-        await interaction.channel.send(f"Congratulations {winner_mentions}! You won **{prize}**! 🏆", embed=win_embed)
-    else:
-        await interaction.channel.send(f"😥 Giveaway for **{prize}** ended, but no one participated.")
+        if not reaction:
+            return await interaction.channel.send(f"❌ Giveaway for **{prize}** cancel ho gaya, reaction nahi mila.")
+
+        users = [u async for u in reaction.users() if not u.bot]
+
+        if len(users) >= winners_count:
+            winners = random.sample(users, winners_count)
+            winner_mentions = ", ".join([w.mention for w in winners])
+
+            win_embed = discord.Embed(
+                title="🎊 GIVEAWAY ENDED 🎊",
+                description=f"Prize: **{prize}**\n\nWinner(s): {winner_mentions}\nCongrats bhaiyo! 🏆",
+                color=0xFFFF00 # Gold
+            )
+            await interaction.channel.send(f"Mubarak ho {winner_mentions}! Tumne **{prize}** jeet liya!", embed=win_embed)
+            
+            # Original embed update karo
+            embed.description = f"Giveaway khatam! Winners: {winner_mentions}"
+            embed.color = discord.Color.greyple()
+            await msg.edit(embed=embed)
+        else:
+            await interaction.channel.send(f"😥 Giveaway for **{prize}** mein kafi log nahi aaye. (Min {winners_count} required)")
+            
+    except Exception as e:
+        print(f"Giveaway Error: {e}")
 
 #/ping speed
 @bot.tree.command(name="ping", description="Bot ki speed check karo")
@@ -387,9 +460,80 @@ async def ping(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+#sticky msg
+@bot.tree.command(name="sticky", description="Channel mein multi-line sticky message set karo")
+@app_commands.checks.has_permissions(manage_messages=True)
+@is_admin_or_owner()
+@app_commands.describe(
+    text="Message likho (New line ke liye Shift+Enter ya \\n use karo)",
+    color="Hex code dalo (e.g. #ff5500) ya khali chhodo"
+)
+async def sticky(interaction: discord.Interaction, text: str, color: str = "#0000ff"):
+    await interaction.response.defer(ephemeral=True)
+    
+    # \n ko real new line mein badlo (agar user string mein bhej raha hai)
+    clean_text = text.replace("\\n", "\n")
+    
+    # Purana sticky delete karne ka logic
+    old_data = await sticky_col.find_one({"channel_id": interaction.channel.id})
+    if old_data:
+        try:
+            old_msg = await interaction.channel.fetch_message(old_data["message_id"])
+            await old_msg.delete()
+        except:
+            pass
+
+    # Naya Embed banna
+    chosen_color = get_color(color)
+    embed = discord.Embed(description=clean_text, color=chosen_color)
+    embed.set_footer(text="📌 Sticky Message")
+    
+    msg = await interaction.channel.send(embed=embed)
+    
+    # MongoDB mein text aur color dono save karo
+    await sticky_col.update_one(
+        {"channel_id": interaction.channel.id},
+        {"$set": {
+            "message_id": msg.id, 
+            "content": clean_text, 
+            "color": color # Color save kar rahe hain taaki move hote waqt wahi rahe
+        }},
+        upsert=True
+    )
+    
+    await interaction.followup.send(f"✅ Sticky set ho gaya `{color}` color mein!")
+
+@bot.tree.command(name="unsticky", description="Is channel se sticky message hata do")
+@app_commands.checks.has_permissions(manage_messages=True)
+@is_admin_or_owner()
+async def unsticky(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    
+    channel_id = interaction.channel.id
+    
+    # 1. Database mein check karo
+    sticky_data = await sticky_col.find_one({"channel_id": channel_id})
+    
+    if not sticky_data:
+        return await interaction.followup.send("❌ Is channel mein koi sticky message set nahi hai!")
+
+    # 2. Jo purana message channel mein hai use delete karne ki koshish karo
+    try:
+        old_msg = await interaction.channel.fetch_message(sticky_data["message_id"])
+        await old_msg.delete()
+    except Exception:
+        # Agar message pehle hi delete ho gaya ho toh ignore
+        pass
+
+    # 3. Database se entry uda do
+    await sticky_col.delete_one({"channel_id": channel_id})
+    
+    await interaction.followup.send("✅ Sticky message hata diya gaya hai. Happy ab shant rahega! 🤫")
+
 #echoooo
 @bot.tree.command(name="echo", description="Happy ki awaaz mein baat karein (AI apne aap band ho jayegi)")
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def echo(interaction: discord.Interaction, message: str, channel: discord.TextChannel = None):
     global ai_enabled # Ye zaroori hai taaki hum global switch ko chhed sakein
     
@@ -473,6 +617,14 @@ async def stats(interaction: discord.Interaction):
     embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
     await interaction.response.send_message(embed=embed)
 
+# purge messages
+@bot.tree.command(name="clear", description="Chat saaf karo")
+@app_commands.checks.has_permissions(manage_messages=True)
+async def clear(interaction: discord.Interaction, amount: int):
+    await interaction.response.defer(ephemeral=True)
+    deleted = await interaction.channel.purge(limit=amount)
+    await interaction.followup.send(f"✅ {len(deleted)} messages uda diye gaye!")
+
 # 4. HELP: Bot kya-kya kar sakta hai (Updated & Clean)
 @bot.tree.command(name="help", description="Happy ki saari shaktiyon ki list")
 async def help_command(interaction: discord.Interaction):
@@ -554,30 +706,45 @@ async def on_member_remove(member):
             embed=embed
         )
 
-# AFK SLASH COMMAND
-@bot.tree.command(name="afk", description="AFK set karo taaki log pareshan na karein")
+@bot.tree.command(name="afk", description="AFK set karo")
 async def afk(interaction: discord.Interaction, reason: str = "Break le raha hoon!"):
-    afk_users[interaction.user.id] = reason
-    # User ka nickname change karke [AFK] add karna (Optional)
+    # 1. Discord ko bolo ki "Wait karo, main kaam kar raha hoon"
+    await interaction.response.defer(ephemeral=True) 
+    
+    user_id = interaction.user.id
+    guild_id = interaction.guild.id
+
+    # 2. MongoDB wala kaam (isme time lag sakta hai)
+    await afk_col.update_one(
+        {"user_id": user_id, "guild_id": guild_id},
+        {"$set": {"reason": reason, "time": datetime.now(timezone.utc)}},
+        upsert=True
+    )
+
+    # 3. Nickname change logic
     try:
-        await interaction.user.edit(nick=f"[AFK] {interaction.user.display_name}")
+        if interaction.guild.me.guild_permissions.manage_nicknames:
+            if not interaction.user.display_name.startswith("[AFK]"):
+                await interaction.user.edit(nick=f"[AFK] {interaction.user.display_name[:25]}")
     except:
-        pass # Admin permissions na ho toh skip karega
-        
-    await interaction.response.send_message(f"✅ {interaction.user.mention}, ab aap AFK ho. Reason: {reason}")
+        pass
+
+    # 4. Ab response bhejo (defer use kiya hai isliye followup use hoga)
+    await interaction.followup.send(f"✅ {interaction.user.mention}, ab aap AFK ho!")
 
 # --- AI CHAT LOGIC (Tera Pura Original Instruction) ---
 @bot.tree.command(name="ai_mode", description="AI Chat ko ON ya OFF karo")
 @owner_is_present()
-@commands.has_permissions(administrator=True)
+@is_admin_or_owner() # Ab ye custom check kaam karega
+# @commands.has_permissions(administrator=True)
 async def ai_mode(interaction: discord.Interaction, status: bool):
     global ai_enabled
     ai_enabled = status
     state = "CHALU (ON) ✅" if ai_enabled else "BAND (OFF) ❌"
     
     embed = discord.Embed(
-        title="🤖 AI Chat Status",
-        description=f"Bhaiyo, Happy ki AI Chat ab **{state}** hai.",
+        title="Chat Status",
+        description=f"Bhaiyo, Happy ki Chat ab **{state}** hai.",
         color=0x2B2D31
     )
     await interaction.response.send_message(embed=embed)
@@ -589,6 +756,47 @@ async def on_message(message):
     if len(message.content) < 2: return
     if message.content.startswith(('!', '.', '?', '/', '$','@')): return
     if "http" in message.content.lower() or "discord.gg" in message.content.lower(): return
+    if "discord.gg/" in message.content.lower().replace(" ", ""):
+        if not message.author.guild_permissions.administrator:
+            try:
+                await message.delete()
+                await message.channel.send(f"🚫 {message.author.mention}, Invites allow nahi hain!", delete_after=5)
+            except discord.Forbidden:
+                print("Bhai, mere paas message delete karne ki permission nahi hai!")
+            except discord.NotFound:
+                pass # Message pehle hi delete ho gaya shayad
+        return
+    
+    # Check karo kya is channel mein koi sticky message hai
+    sticky_data = await sticky_col.find_one({"channel_id": message.channel.id})
+    
+    if sticky_data:
+        chan_id = message.channel.id
+        sticky_counter[chan_id] = sticky_counter.get(chan_id, 0) + 1
+        
+        # Rate limit safety: Har 3 messages ke baad hi move hoga
+        if sticky_counter[chan_id] >= 1:
+            sticky_counter[chan_id] = 0
+            
+            try:
+                # Purana delete
+                old_msg = await message.channel.fetch_message(sticky_data["message_id"])
+                await old_msg.delete()
+                
+                # Naya send (Same content aur color)
+                color_hex = sticky_data.get("color", "#0000ff")
+                embed = discord.Embed(description=sticky_data["content"], color=get_color(color_hex))
+                embed.set_footer(text="📌 Sticky Message")
+                
+                new_sticky = await message.channel.send(embed=embed)
+                
+                # DB mein naya message ID update
+                await sticky_col.update_one(
+                    {"channel_id": chan_id},
+                    {"$set": {"message_id": new_sticky.id}}
+                )
+            except:
+                pass
 
     # --- Yahan fresh time nikaalo ---
     IST = pytz.timezone('Asia/Kolkata')
@@ -596,19 +804,28 @@ async def on_message(message):
     readable_time = dt_now.strftime("%I:%M %p")
     readable_date = dt_now.strftime("%d %B %Y")
 
-    # --- 1. AFK REMOVAL & CHECK (Tera purana logic) ---
-    if message.author.id in afk_users:
-        del afk_users[message.author.id]
-        try:
-            new_nick = message.author.display_name.replace("[AFK] ", "")
-            await message.author.edit(nick=new_nick)
-        except: pass
-        await message.channel.send(f"Welcome back {message.author.mention}!", delete_after=5)
+    user_afk = await afk_col.find_one({"user_id": message.author.id, "guild_id": message.guild.id})
+    
+    if user_afk:
+        await afk_col.delete_one({"_id": user_afk["_id"]})
+        
+        # Nickname wapas theek karna (Sirf agar permission ho)
+        if message.guild.me.guild_permissions.manage_nicknames:
+            try:
+                new_nick = message.author.display_name.replace("[AFK] ", "")
+                await message.author.edit(nick=new_nick)
+            except:
+                pass
+        
+        await message.channel.send(f"Welcome back {message.author.mention}! Aapka AFK hata diya gaya.", delete_after=5)
 
-    for mention in message.mentions:
-        if mention.id in afk_users:
-            reason = afk_users[mention.id]
-            await message.reply(f"🚨 Bhai, **{mention.name}** abhi AFK hai.\n**Reason:** {reason}", delete_after=10)
+    # --- LOGIC 2: Mention Check (Koi AFK bande ko tag kare) ---
+    if message.mentions:
+        for mention in message.mentions:
+            target_afk = await afk_col.find_one({"user_id": mention.id, "guild_id": message.guild.id})
+            if target_afk:
+                reason = target_afk["reason"]
+                await message.reply(f"🚫 **{mention.name}** abhi AFK hai.\n**Reason:** {reason}", delete_after=10)
     
     # --- 2. HEART REACTION LOGIC (Tera purana logic) ---
     greetings = ["good morning", "gm", "good night", "gn", "happy birthday", "hbd", "hello", "hi", "welcome"]

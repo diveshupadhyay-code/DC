@@ -211,7 +211,8 @@ async def role(interaction: discord.Interaction, member: discord.Member, role: d
 
 # 5. WARNING (Simple message warning)
 @bot.tree.command(name="warn", description="Kisi member ko warning do")
-@app_commands.checks.has_permissions(administrator=True)
+@is_admin_or_owner()
+# @app_commands.checks.has_permissions(administrator=True)
 async def warn(interaction: discord.Interaction, member: discord.Member, reason: str = "Koi reason nahi diya"):
     await interaction.response.defer() # Slow network ke liye safety
     
@@ -373,7 +374,8 @@ async def announce(
     await interaction.response.send_message(f"✅ Announcement {target_channel.mention} mein bhej di gayi hai!", ephemeral=True)
 
 @bot.tree.command(name="giveaway", description="Server mein professional giveaway start karo")
-@app_commands.checks.has_permissions(administrator=True)
+@is_admin_or_owner()
+# @app_commands.checks.has_permissions(administrator=True)
 async def giveaway(
     interaction: discord.Interaction, 
     prize: str, 
@@ -557,7 +559,8 @@ async def echo(interaction: discord.Interaction, message: str, channel: discord.
 # --- MIMIC / TUPPERBOX COMMAND ---
 @bot.tree.command(name="mimic", description="Kisi aur ke naam se message bhejein (Admin Only)")
 @app_commands.describe(user="Kise copy karna hai?", message="Kya bulwana hai?")
-@app_commands.checks.has_permissions(administrator=True) # Sirf Admins ke liye
+@is_admin_or_owner()
+# @app_commands.checks.has_permissions(administrator=True) # Sirf Admins ke liye
 async def mimic(interaction: discord.Interaction, user: discord.Member, message: str):
     # Pehle response ko defer kar do taaki 'Bot is thinking' dikhe aur gayab ho jaye
     await interaction.response.defer(ephemeral=True)
@@ -620,6 +623,7 @@ async def stats(interaction: discord.Interaction):
 # purge messages
 @bot.tree.command(name="clear", description="Chat saaf karo")
 @app_commands.checks.has_permissions(manage_messages=True)
+@is_admin_or_owner()
 async def clear(interaction: discord.Interaction, amount: int):
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=amount)

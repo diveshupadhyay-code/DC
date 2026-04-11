@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Happy Bot Admin</title>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <div class="container mx-auto p-10">
+        <h1 class="text-4xl font-bold mb-5 text-yellow-400">Happy Bot Control Center 🛠️</h1>
+        
+        <div class="grid grid-cols-3 gap-4 mb-10">
+            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-blue-500">
+                <p class="text-gray-400">Servers</p>
+                <h2 class="text-2xl font-bold">{{ stats.servers }}</h2>
+            </div>
+            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-green-500">
+                <p class="text-gray-400">AI Mode</p>
+                <h2 class="text-2xl font-bold">{{ stats.ai_status }}</h2>
+            </div>
+            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-red-500">
+                <p class="text-gray-400">Speed</p>
+                <h2 class="text-2xl font-bold">{{ stats.latency }}ms</h2>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-8 rounded-xl">
+            <h3 class="text-xl mb-4">Quick Actions</h3>
+            <form action="/toggle-ai" method="POST" class="mb-5">
+                <input type="password" name="password" placeholder="Admin Pass" class="bg-gray-700 p-2 rounded">
+                <button class="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded font-bold">
+                    Toggle AI Mode
+                </button>
+            </form>
+
+            <form action="/broadcast" method="POST">
+                <input type="password" name="password" placeholder="Admin Pass" class="bg-gray-700 p-2 rounded block mb-2">
+                <textarea name="msg" placeholder="Type announcement..." class="bg-gray-700 p-2 rounded w-full mb-2 text-white"></textarea>
+                <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Send Broadcast</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

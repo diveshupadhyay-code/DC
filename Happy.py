@@ -77,7 +77,7 @@ def broadcast():
     if password == ADMIN_PASS and msg:
         for guild in bot.guilds:
             if guild.system_channel:
-                bot.loop.create_task(guild.system_channel.send(f"📢 **Admin Message:** {msg}"))
+                bot.loop.create_task(guild.system_channel.send(f"{msg}"))
     return redirect(url_for('home'))
 
 def run():

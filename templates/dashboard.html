@@ -1,43 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Happy Bot Admin</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>Happy Bot | Admin Panel</title>
+    <style>
+        .glass {
+            background: rgba(31, 41, 55, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white font-sans">
-    <div class="container mx-auto p-10">
-        <h1 class="text-4xl font-bold mb-5 text-yellow-400">Happy Bot Control Center 🛠️</h1>
-        
-        <div class="grid grid-cols-3 gap-4 mb-10">
-            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-blue-500">
-                <p class="text-gray-400">Servers</p>
-                <h2 class="text-2xl font-bold">{{ stats.servers }}</h2>
-            </div>
-            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-green-500">
-                <p class="text-gray-400">AI Mode</p>
-                <h2 class="text-2xl font-bold">{{ stats.ai_status }}</h2>
-            </div>
-            <div class="bg-gray-800 p-5 rounded-lg border-b-4 border-red-500">
-                <p class="text-gray-400">Speed</p>
-                <h2 class="text-2xl font-bold">{{ stats.latency }}ms</h2>
-            </div>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen font-sans">
+
+    <div class="flex">
+        <div class="w-20 lg:w-64 h-screen bg-[#1e293b] p-6 hidden md:flex flex-col border-r border-slate-700">
+            <h1 class="text-2xl font-black text-yellow-400 hidden lg:block mb-10">HAPPY BOT</h1>
+            <nav class="space-y-4">
+                <a href="#" class="flex items-center space-x-3 text-yellow-400 bg-slate-800 p-3 rounded-xl">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span class="hidden lg:block font-bold">Dashboard</span>
+                </a>
+                <a href="#" class="flex items-center space-x-3 text-slate-400 hover:text-white p-3">
+                    <i data-lucide="settings"></i>
+                    <span class="hidden lg:block">Settings</span>
+                </a>
+            </nav>
         </div>
 
-        <div class="bg-gray-800 p-8 rounded-xl">
-            <h3 class="text-xl mb-4">Quick Actions</h3>
-            <form action="/toggle-ai" method="POST" class="mb-5">
-                <input type="password" name="password" placeholder="Admin Pass" class="bg-gray-700 p-2 rounded">
-                <button class="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded font-bold">
-                    Toggle AI Mode
-                </button>
-            </form>
+        <div class="flex-1 p-6 lg:p-12">
+            <header class="flex justify-between items-center mb-10">
+                <div>
+                    <h2 class="text-3xl font-bold text-white">Swagat hai, Maalik! 👋</h2>
+                    <p class="text-slate-400">Happy abhi full power mein hai.</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="bg-green-500/10 text-green-500 px-3 py-1 rounded-full text-sm font-medium border border-green-500/20">
+                        ● Online
+                    </span>
+                </div>
+            </header>
 
-            <form action="/broadcast" method="POST">
-                <input type="password" name="password" placeholder="Admin Pass" class="bg-gray-700 p-2 rounded block mb-2">
-                <textarea name="msg" placeholder="Type announcement..." class="bg-gray-700 p-2 rounded w-full mb-2 text-white"></textarea>
-                <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Send Broadcast</button>
-            </form>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="stat-card glass p-6 rounded-2xl shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-blue-500/20 rounded-lg text-blue-500">
+                            <i data-lucide="server"></i>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm uppercase tracking-wider">Total Servers</p>
+                    <h3 class="text-4xl font-bold mt-1 text-white">{{ stats.servers }}</h3>
+                </div>
+
+                <div class="stat-card glass p-6 rounded-2xl shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-green-500/20 rounded-lg text-green-500">
+                            <i data-lucide="bot"></i>
+                        </div>
+                        <span class="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded uppercase">Active</span>
+                    </div>
+                    <p class="text-slate-400 text-sm uppercase tracking-wider">AI Mode</p>
+                    <h3 class="text-4xl font-bold mt-1 text-white">{{ stats.ai_status }}</h3>
+                </div>
+
+                <div class="stat-card glass p-6 rounded-2xl shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-red-500/20 rounded-lg text-red-500">
+                            <i data-lucide="zap"></i>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm uppercase tracking-wider">Latency</p>
+                    <h3 class="text-4xl font-bold mt-1 text-white">{{ stats.latency }}<span class="text-lg font-normal">ms</span></h3>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass p-8 rounded-3xl">
+                    <h3 class="text-xl font-bold mb-6 flex items-center">
+                        <i data-lucide="cpu" class="mr-2 text-yellow-400"></i> AI Power Switch
+                    </h3>
+                    <form action="/toggle-ai" method="POST" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">Admin Security Key</label>
+                            <input type="password" name="password" placeholder="••••••••" 
+                                class="w-full bg-[#0f172a] border border-slate-700 rounded-xl p-3 focus:outline-none focus:border-yellow-400 transition-all">
+                        </div>
+                        <button class="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-black py-4 rounded-xl shadow-lg shadow-yellow-400/20 transition-all transform active:scale-95">
+                            TOGGLE AI MODE
+                        </button>
+                    </form>
+                </div>
+
+                <div class="glass p-8 rounded-3xl">
+                    <h3 class="text-xl font-bold mb-6 flex items-center">
+                        <i data-lucide="megaphone" class="mr-2 text-blue-400"></i> Global Announcement
+                    </h3>
+                    <form action="/broadcast" method="POST" class="space-y-4">
+                        <input type="password" name="password" placeholder="Admin Security Key" 
+                            class="w-full bg-[#0f172a] border border-slate-700 rounded-xl p-3 focus:outline-none focus:border-blue-400">
+                        <textarea name="msg" rows="3" placeholder="Kya message bhejna hai, boss?" 
+                            class="w-full bg-[#0f172a] border border-slate-700 rounded-xl p-3 focus:outline-none focus:border-blue-400"></textarea>
+                        <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all transform active:scale-95">
+                            SEND TO ALL SERVERS
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        // Icons initialize karne ke liye
+        lucide.createIcons();
+    </script>
 </body>
 </html>

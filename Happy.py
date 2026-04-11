@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from flask import Flask
+from flask import Flask, render_template, request, redirect, url_for
 from threading import Thread
 import os, json
 from dotenv import load_dotenv
@@ -48,11 +48,37 @@ async def update_server_data(server_id, key, value):
         upsert=True
     )
 
-    
+ADMIN_PASS = "happydc"    
 # --- Flask & AI Setup (Tera Original) ---
 app = Flask('')
 @app.route('/')
-def home(): return "Happy is Online!"
+def home():
+    # Dashboard pe dikhane ke liye data pack kar rahe hain
+    stats = {
+        "servers": len(bot.guilds),
+        "users": len(bot.users),
+        "ai_status": "ON" if ai_enabled else "OFF",
+        "latency": round(bot.latency * 1000)
+    }
+    return render_template('dashboard.html', stats=stats)
+
+@app.route('/toggle-ai', methods=['POST'])
+def toggle_ai():
+    global ai_enabled
+    password = request.form.get("password")
+    if password == ADMIN_PASS:
+        ai_enabled = not ai_enabled
+    return redirect(url_for('home'))
+
+@app.route('/broadcast', methods=['POST'])
+def broadcast():
+    password = request.form.get("password")
+    msg = request.form.get("msg")
+    if password == ADMIN_PASS and msg:
+        for guild in bot.guilds:
+            if guild.system_channel:
+                bot.loop.create_task(guild.system_channel.send(f"📢 **Admin Message:** {msg}"))
+    return redirect(url_for('home'))
 
 def run():
     port = int(os.environ.get("PORT", 10000))

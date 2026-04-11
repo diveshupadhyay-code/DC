@@ -97,32 +97,44 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- Status Loop ---
-@tasks.loop(seconds=15) # Har 15 second mein badlega
+import random # Isko file ke ekdum upar rakhna top pe
+
+@tasks.loop(seconds=15)
 async def change_status():
     await bot.wait_until_ready()
     
-    # Check karenge ki AI on hai ya off taaki status uske hisaab se dikhe
+    # Servers aur Users ka real count nikal lo
+    guild_count = len(bot.guilds)
+    member_count = sum(guild.member_count for guild in bot.guilds) # Zyada accurate count
+    
     if ai_enabled:
         status_list = [
-            f"Watching {len(bot.users)} members",
-            "Listening to @Happy",
-            "Type /help for masti",
-            "AI Mode: ON ✅"
+            f"👀 {member_count} Launde-Lapaate",
+            f"🏢 {guild_count} Servers mein Raaj",
+            "👂 Listening to @Happy",
+            "✨ Type /help for Masti",
+            "🤖 AI Mode: Full Power ✅",
+            f"🚀 Latency: {round(bot.latency * 1000)}ms"
         ]
     else:
         status_list = [
-            "Mod is chatting via Echo 🎤",
-            "AI Mode: Sleeping 😴",
-            "Watching the conversation",
-            "Owner is in control"
+            "🎤 Mod is chatting via Echo",
+            "😴 AI Mode: Chilling/Off",
+            "🛡️ Owner Control: ON",
+            "👀 Watching you quietly...",
+            f"📊 Monitoring {guild_count} Guilds"
         ]
     
-    # Randomly ek status uthayenge
-    import random
     new_status = random.choice(status_list)
     
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=new_status))
-
+    # Activity type bhi random kar sakte hain thoda variation ke liye
+    # Par tune 'watching' bola hai toh wahi rakhte hain with a twist
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name=new_status
+        )
+    )
 # --- Loop ko Start karne ke liye ---
 @bot.event
 async def on_ready():

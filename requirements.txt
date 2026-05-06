@@ -1,4 +1,4 @@
-discord.py
+discord.py>=2.4.0
 google-genai
 python-dotenv
 flask
@@ -6,3 +6,4 @@ groq
 pytz
 motor
 aiohttp
+audioop-lts

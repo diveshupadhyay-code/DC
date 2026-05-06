@@ -24,7 +24,7 @@ user_memories = {}
 active_calls = {}  # {server_id: {'partner_id': id, 'channel_id': id}}
 waiting_list = []  # List of dicts: [{'server_id': id, 'channel_id': id}]
 ai_enabled = True  # By default AI on rahega
-maintenance_mode = True
+maintenance_mode = False
 # Dictionary to track active sessions {channel_id: last_interaction_timestamp}
 active_sessions = {} # {channel_id: last_active_timestamp}
 SESSION_TIMEOUT = 300 # 5 minutes (seconds mein)

@@ -1,84 +1,257 @@
-# 🤖 Happy Bot - The Ultimate Desi AI Friend & Server Manager
+# Happy Bot — Premium Edition
 
-**Happy** ek next-level hybrid Discord bot hai jo India ki street vibe, high-end AI technology (Llama 3.3 via Groq), aur power-packed moderation features ko mix karke banaya gaya hai. 
-
-Ye sirf chatting nahi karta, balki server connection, persistent ticket system, interactive embed building, dynamic profile cards aur server management bhi ekdum smooth sambhalta hai.
+A feature-rich Discord bot with Indian vibe, premium system, and comprehensive moderation.
 
 ---
 
-## ✨ Key Features
+## Setup
 
-* **🧠 Brainy AI Chatting:** Llama-3.3-70b ka use karke ek dum natural Hinglish replies. Ye purani baatein yaad rakhta hai (Memory) aur typing effect ke saath reply deta hai.
-* **🎫 Persistent Ticket System:** MongoDB-backed Discord UI buttons jo bot restart hone par bhi dead nahi hote. Single-click support channels banata hai!
-* **🛡️ Power Moderation:** Bulk message deleting (Purge), Role management, Channel locking, Voice controls aur Softbans with hierarchy checks.
-* **🌐 Translation & Slangs:** Google translate aur Urban Dictionary street lingo search direct chat ke andar asynchronously bina kisi lag ke.
-* **📞 Global Call Matchmaking:** `/call` command se apne server ke channel ko kisi dusre random server se connect karo aur anjan logon se baatein karo!
-* **🎭 Mimic (Webhook Magic):** `/mimic` command se kisi bhi member ka roop dhaar lo (Avatar + Name) aur unke naam se message bhejo.
-* **💳 VIP Profile Cards:** Server ke members ke liye dynamic, editable profile identity cards (Bio + Location) jo server stats show karte hain.
+1. Clone/upload to Render (or any Node host)
+2. Copy `.env.example` to `.env` and fill in values
+3. `pip install -r requirements.txt`
+4. `python main.py`
+
+### Render Setup
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `python main.py`
+- Environment Variables: `DISCORD_TOKEN`, `GROQ_API_KEY`, `MONGO_URL`
 
 ---
 
-## 🚀 Commands List
+## Premium System
 
-Bot dono **Slash Commands (`/`)** aur **Prefix Commands (`,` ya server custom prefix)** ko support karta hai.
+Premium is managed by the bot owner only.
 
-### 🛡️ Moderation & Server Settings (Admins/Mods Only)
-| Command | Format | Description |
-| :--- | :--- | :--- |
-| `,settings` | `,settings` | Server ke saare active configurations aur settings ek hi screen par dekho. |
-| `,command` | `,command disable/enable [cmd]` | Kisi bhi command ko server ke liye ban ya unban karo. |
-| `,softban` | `,softban @user [reason]` | User ko ban karke pichle 7 days ke messages clear karke instant unban karna. |
-| `,role add` | `,role add @user @role` | User ko role assign karega (Hierarchy protected). |
-| `,role remove` | `,role remove @user @role` | User se role remove karega (Hierarchy protected). |
-| `,lock` | `,lock [#channel] [reason]` | Kisi bhi text channel ko locked/mute karne ke liye. |
-| `,unlock` | `,unlock [#channel] [reason]` | Locked channel ko wapas normal/open karne ke liye. |
-| `,vclock` | `,vclock [vc_channel]` | Voice channel ko lock karna taaki naye members join na kar sakein. |
-| `,vcunlock` | `,vcunlock [vc_channel]` | Voice channel ko wapas unlock karna. |
-| `,purge` | `,purge [100] / bots [50] / @user [20]` | Target filtering ke sath messages bulk-delete karna. |
-| `,clearwarns`| `,clearwarns @user` | Database se user ki saari warnings/records delete karna. |
-| `,nickname` | `,nickname @user [name]` | Kisi ka sasta name set karna, ya blank chhod kar default reset karna. |
+```
+,premium add server <guild_id>     — Activate premium for a server
+,premium add user <user_id>        — Activate premium for a user  
+,premium remove server <guild_id>  — Remove server premium
+,premium remove user <user_id>     — Remove user premium
+,premium list                      — List all premium entries
+```
 
-### 🎫 Support Tickets & Embed Builder
-| Command | Format | Description |
-| :--- | :--- | :--- |
-| `,ticket setup` | `,ticket setup` | Green button wala ticket support panel channel mein send karega. |
-| `,ticket add` | `,ticket add @user` | Ticket channel ke andar kisi member ko add karne ke liye. |
-| `,ticket remove`| `,ticket remove @user`| Ticket channel se kisi member ko remove karne ke liye. |
-| `,ticket close`| `,ticket close` | Active support ticket channel ko delete aur wipe out karna. |
-| `,embed` | `,embed create` | Naya empty custom embed draft start karna. |
-| `,embed title` | `,embed title [text]` | Active draft ka main title/heading set karna. |
-| `,embed description` | `,embed description [text]` | Active draft ka description/body set karna. |
-| `,embed color` | `,embed color [hex_code]` | Embed ki side-line ka hexadecimal color set karna (e.g., `#FF0000`). |
-| `,embed send` | `,embed send [#channel]` | Final designed embed ko target channel mein chipkana. |
+### Premium Features
+- AI Chat (mention @Happy)
+- Global Call between servers
+- Button Roles
+- VoiceMaster (temp VCs)
+- Bump Reminder
+- Custom Bot Status (per server)
+- Personal Prefix (per user, across servers)
 
-### 🌍 Utilities & Fun (Everyone)
-| Command | Format | Description |
-| :--- | :--- | :--- |
-| `,profile` | `,profile / set bio / set location` | Apna VIP identity card dekhna ya bio aur city set karna. |
-| `,urban` | `,urban [word]` | Urban Dictionary se street slangs aur definitions search karna. |
-| `,translate` | `,translate [lang] [text]` | Kisi bhi videshi message ko instant translated text mein badalna. |
-| `,membercount`| `,membercount` | Server ke Humans aur Bots ka dynamic breakdown stats dekhna. |
-| `,ship` | `,ship @user1 @user2` | Do dosto ke beech constant love matches check karna (Bavaal guarantee!). |
-| `,hot` | `,hot @user` | Apne kisi dost ka 'hotness meter' visual progress bar ke sath nikalna. |
-| `,shrug` | `,shrug [message]` | Message ke aage instant `¯\_(ツ)_/¯` shrug emoji lagana. |
+---
 
-### 🧠 Legacy Slash Commands (AI & Matchmaking)
+## Command Reference
+
+### Prefix Commands (default `,`)
+
+#### Prefix Management
 | Command | Description |
-| :--- | :--- |
-| `/call` | Dusre random server ke call-matchmaking session se connect hona. |
-| `/hangup` | Active call ko cut karna ya waiting list se hatna. |
-| `/ai_mode` | AI engine ko poore server ke liye ON ya OFF karna. |
-| `/mimic` | Webhook magic ke zariye kisi member ka roop lekar message bhejna. |
-| `/afk` | Reason ke sath AFK status set karna. |
-| `/userinfo` | Kisi bhi member ki "Kundli" (Details) nikalna. |
-| `/avatar` | Kisi member ki avatar image ko badi karke dekhna. |
-| `/giveaway`| Prize aur time set karke premium giveaway panel start karna. |
+|---------|-------------|
+| `,prefix` | View current prefix |
+| `,prefix set <symbol>` | Set server prefix (Admin) |
+| `,prefix remove` | Reset to default `,` (Admin) |
+| `,prefix self <symbol>` | Personal prefix — all servers (Premium) |
+| `,prefix selfremove` | Remove personal prefix |
+
+#### Moderation
+| Command | Description |
+|---------|-------------|
+| `,kick @user [reason]` | Kick a member |
+| `,ban @user [reason]` | Ban a member |
+| `,unban <user_id>` | Unban a user |
+| `,mute @user <minutes> [reason]` | Timeout a member |
+| `,unmute @user` | Remove timeout |
+| `,warn @user [reason]` | Warn a member |
+| `,warnings [@user]` | View warning count |
+| `,clearwarns @user` | Clear all warnings |
+| `,softban @user [reason]` | Ban + unban (clears messages) |
+| `,nickname @user [name]` | Change/reset nickname |
+
+#### Lock System
+| Command | Description |
+|---------|-------------|
+| `,lock [#channel]` | Lock text/thread/voice channel |
+| `,unlock [#channel]` | Unlock channel |
+| `,lockdown [reason]` | Lock ALL channels (emergency) |
+| `,unlockdown` | Lift server lockdown |
+| `,vclock [#vc]` | Lock voice channel |
+| `,vcunlock [#vc]` | Unlock voice channel |
+
+#### Jail
+| Command | Description |
+|---------|-------------|
+| `,jailsetup` | Create jail role + channel (Admin) |
+| `,jail @user [reason]` | Jail a member |
+| `,unjail @user` | Release from jail |
+
+#### Purge
+| Command | Description |
+|---------|-------------|
+| `,purge <amount>` | Delete N messages |
+| `,purge bots <amount>` | Delete bot messages |
+| `,purge @user <amount>` | Delete user's messages |
+| `,purge links <amount>` | Delete messages with links |
+
+#### Roles
+| Command | Description |
+|---------|-------------|
+| `,role add @user @role` | Add role to member |
+| `,role remove @user @role` | Remove role from member |
+| `,massrole add @everyone @role` | Add role to all members |
+| `,massrole add bots @role` | Add role to all bots |
+| `,reactionrole add <msg_link> <emoji> @role` | Reaction role |
+| `,buttonrole @role Label \| @role2 Label2` | Button roles (Premium) |
+| `,boosterrole @role` | Reward role for boosters |
+
+#### Server Setup
+| Command | Description |
+|---------|-------------|
+| `,quicksetup` | Auto-create channels, roles, categories |
+| `,settings` | View server configuration dashboard |
+| `,premiumrole @role` | Set premium members role |
+| `,setupmute` | Create Muted/Image Muted/Reaction Muted roles |
+| `,setstatus <text>` | Custom bot status for your server (Premium) |
+
+#### Welcome / Bye
+| Command | Description |
+|---------|-------------|
+| `,welcome set #channel` | Set welcome channel |
+| `,welcome enable` | Enable welcome messages |
+| `,welcome disable` | Disable welcome messages |
+| `,setbye #channel` | Set + enable bye messages |
+
+#### Logging
+| Command | Description |
+|---------|-------------|
+| `,logs set #channel` | Set log channel |
+| `,logs disable` | Disable logging |
+
+#### Tickets
+| Command | Description |
+|---------|-------------|
+| `,ticket setup` | Send ticket creation panel |
+| `,ticket close` | Close current ticket |
+| `,ticket add @user` | Add user to ticket |
+| `,ticket remove @user` | Remove user from ticket |
+| `,ticket staffrole @role` | Set staff role for ticket access |
+
+Ticket types: General Help, Report a User, Join the Staff, Server Event
+
+#### Leveling
+| Command | Description |
+|---------|-------------|
+| `,level [@user]` | View level and XP |
+| `,leaderboard` | Top 10 members by level |
+
+#### Birthday
+| Command | Description |
+|---------|-------------|
+| `,birthday [@user]` | View birthday |
+| `,birthday set DD/MM` | Set your birthday |
+
+#### Counters
+| Command | Description |
+|---------|-------------|
+| `,counter create members #vc` | Member count VC |
+| `,counter create bots #vc` | Bot count VC |
+| `,counter create channels #vc` | Channel count VC |
+
+#### Utility
+| Command | Description |
+|---------|-------------|
+| `,userinfo [@user]` | User information |
+| `,avatar [@user]` | User avatar |
+| `,serverinfo` | Server stats |
+| `,ping` | Bot latency |
+| `,membercount` | Member/bot/human count |
+| `,shrug [text]` | Send shrug |
+| `,translate <lang> <text>` | Translate text |
+| `,urban <word>` | Urban Dictionary lookup |
+
+#### Fun / Roleplay
+| Command | Description |
+|---------|-------------|
+| `,ship @user1 @user2` | Love match percentage |
+| `,hot [@user]` | Hotness meter |
+| `,hug/pat/slap/kiss/poke/highfive/bonk/cuddle @user` | Roleplay actions |
+
+#### Profile
+| Command | Description |
+|---------|-------------|
+| `,profile [@user]` | View profile card |
+| `,profile bio <text>` | Set bio |
+| `,profile location <city>` | Set location |
+
+#### Announcement / Giveaway
+| Command | Description |
+|---------|-------------|
+| `,announce [#channel] <text>` | Send announcement |
+| `,giveaway <minutes> <winners> <prize>` | Start giveaway |
+
+#### AFK
+| Command | Description |
+|---------|-------------|
+| `,afk [reason]` | Set AFK status |
+
+#### Sticky
+| Command | Description |
+|---------|-------------|
+| `,sticky <text>` | Set sticky message |
+| `,unsticky` | Remove sticky message |
+
+#### Embed Builder
+| Command | Description |
+|---------|-------------|
+| `,embed create` | Start new embed draft |
+| `,embed title <text>` | Set title |
+| `,embed description <text>` | Set description |
+| `,embed color #hex` | Set border color |
+| `,embed thumbnail <url>` | Set thumbnail |
+| `,embed send [#channel]` | Send the embed |
+
+#### Mimic / Echo
+| Command | Description |
+|---------|-------------|
+| `,mimic @user <message>` | Send message as user (via webhook) |
+| `,echo [#channel] <message>` | Send message as bot |
+
+#### AutoMod
+| Command | Description |
+|---------|-------------|
+| `,automod invite on/off` | Toggle anti-invite link |
+
+#### Voice (Premium)
+| Command | Description |
+|---------|-------------|
+| `,vcsetup` | Setup VoiceMaster temp VCs (Premium) |
+| `,call` | Connect to another server (Premium) |
+| `,hangup` | End the cross-server call (Premium) |
+
+#### Bump Reminder (Premium)
+| Command | Description |
+|---------|-------------|
+| `,bumpreminder on/off` | Toggle DISBOARD bump reminder (Premium) |
+
+#### Owner Only
+| Command | Description |
+|---------|-------------|
+| `,premium add/remove server/user <id>` | Manage premium |
+| `,premium list` | List premium entries |
+| `,aimode on/off` | Toggle AI chat globally |
+| `,maintenance on/off` | Toggle maintenance mode |
 
 ---
 
-## 🛠️ Setup & Installation
+## Slash Commands
+All major commands also have `/` slash equivalents:
+`/ping`, `/userinfo`, `/avatar`, `/kick`, `/ban`, `/warn`, `/mute`, `/clear`, `/announce`, `/afk`, `/level`, `/help`
 
-1. **Clone the Repo:**
-   ```bash
-   git clone [https://github.com/diveshupadhyay-code/DC.git](https://github.com/diveshupadhyay-code/DC.git)
-   cd DC
+---
+
+## Notes
+- Bot owner (hardcoded ID) can use ALL commands in any server without having any permissions
+- AI chat requires Premium (server or user)
+- Default prefix is `,` — can be changed per server or per user (premium)
+- Welcome/bye messages are **opt-in** — disabled by default
+- Render free tier may have cold starts; keep-alive Flask server handles this

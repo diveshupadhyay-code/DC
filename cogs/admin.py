@@ -1,1 +1,720 @@
+"""
+cogs/admin.py — Settings dashboard, prefix, announce, giveaway, server config,
+                 command disable/enable, slowmode, channel tools,
+                 giveaway reroll, owner tools.
+"""
 
+import discord
+from discord.ext import commands
+from discord import app_commands
+import asyncio, random, re
+from datetime import datetime, timedelta, timezone
+
+from utils.db import (
+    settings_col, personal_prefix_col, premium_col,
+    logs_col, bump_col, tickets_col, disabled_cmds_col,
+    voicemaster_col, counters_col
+)
+from utils.helpers import (
+    BOT_OWNER_ID, ctx_owner, ctx_admin, ctx_mod, ctx_premium,
+    is_premium_server, is_premium_user,
+    update_server_data, get_server_data, log_event
+)
+
+# In-memory giveaway store  {msg_id: {prize, winners, channel_id, host_id}}
+_active_giveaways: dict = {}
+
+
+class Admin(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SETTINGS DASHBOARD
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command(aliases=["config", "panel"])
+    @commands.has_permissions(administrator=True)
+    async def settings(self, ctx):
+        """Full server configuration dashboard."""
+        gid = str(ctx.guild.id)
+
+        gs, log_cfg, bump_cfg, ticket_cfg, vc_cfg = await asyncio.gather(
+            settings_col.find_one({"_id": gid}),
+            logs_col.find_one({"guild_id": gid}),
+            bump_col.find_one({"guild_id": gid}),
+            tickets_col.find_one({"_id": gid}),
+            voicemaster_col.find_one({"guild_id": gid}),
+        )
+        gs         = gs         or {}
+        log_cfg    = log_cfg    or {}
+        ticket_cfg = ticket_cfg or {}
+
+        counter_docs = await counters_col.find({"guild_id": gid}).to_list(10)
+        counter_list = ", ".join(d["type"] for d in counter_docs) or "None"
+
+        dis_docs = await disabled_cmds_col.find({"guild_id": gid}).to_list(20)
+        dis_list = ", ".join(f"`{d['command_name']}`" for d in dis_docs) or "None"
+
+        def _ch(key):
+            cid = gs.get(key)
+            return f"<#{cid}>" if cid else "Not set"
+
+        def _on(key):
+            return "On" if gs.get(key) else "Off"
+
+        is_prem  = await is_premium_server(ctx.guild.id)
+        log_ch   = f"<#{log_cfg['channel_id']}>" if log_cfg.get("channel_id") else "Not set"
+
+        embed = discord.Embed(
+            title=f"Settings — {ctx.guild.name}",
+            color=0x2B2D31,
+            timestamp=datetime.now(timezone.utc)
+        )
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+
+        embed.add_field(
+            name="General",
+            value=f"Prefix: `{gs.get('prefix', ',')}`\nPremium: {'Yes' if is_prem else 'No'}",
+            inline=True
+        )
+        embed.add_field(
+            name="Welcome / Bye",
+            value=f"Welcome: {_on('welcome_enabled')} → {_ch('welcome_channel')}\nBye: {_on('bye_enabled')} → {_ch('bye_channel')}",
+            inline=True
+        )
+        embed.add_field(
+            name="Logging",
+            value=f"Channel: {log_ch}",
+            inline=True
+        )
+        embed.add_field(
+            name="Moderation",
+            value=f"Anti-Invite: {_on('invite_block')}\nJail: {'Configured' if gs.get('jail_role_id') else 'Not set'}",
+            inline=True
+        )
+        embed.add_field(
+            name="Tickets",
+            value=f"Total opened: {ticket_cfg.get('ticket_count', 0)}\nStaff role: {'Set' if ticket_cfg.get('staff_role_id') else 'Not set'}",
+            inline=True
+        )
+        embed.add_field(
+            name="Premium Features",
+            value=f"Bump Reminder: {'On' if bump_cfg and bump_cfg.get('enabled') else 'Off'}\nVoiceMaster: {'Configured' if vc_cfg else 'Not set'}\nCounters: {counter_list}",
+            inline=True
+        )
+        embed.add_field(name="Disabled Commands", value=dis_list, inline=False)
+        embed.set_footer(text=f"Server ID: {gid} • ,help admin for setup commands")
+        await ctx.reply(embed=embed)
+
+    @app_commands.command(name="settings", description="View server configuration dashboard")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def slash_settings(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        gid     = str(interaction.guild.id)
+        gs      = await settings_col.find_one({"_id": gid}) or {}
+        is_prem = await is_premium_server(interaction.guild.id)
+        embed   = discord.Embed(title=f"Settings — {interaction.guild.name}", color=0x2B2D31)
+        embed.add_field(name="Prefix",  value=f"`{gs.get('prefix', ',')}`", inline=True)
+        embed.add_field(name="Premium", value="Yes" if is_prem else "No",   inline=True)
+        embed.add_field(name="Welcome", value="On" if gs.get("welcome_enabled") else "Off", inline=True)
+        embed.set_footer(text="Use ,settings for full details")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  PREFIX
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.group(invoke_without_command=True)
+    async def prefix(self, ctx):
+        """View prefix info and sub-commands."""
+        gs       = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        current  = gs.get("prefix", ",")
+        personal = await personal_prefix_col.find_one({"user_id": str(ctx.author.id)})
+        pp       = personal.get("prefix") if personal else None
+        is_prem  = await is_premium_user(ctx.author.id) or await is_premium_server(ctx.guild.id)
+
+        embed = discord.Embed(title="Prefix Settings", color=0x2B2D31)
+        embed.add_field(name="Server Prefix",   value=f"`{current}`",              inline=True)
+        embed.add_field(name="Personal Prefix", value=f"`{pp}`" if pp else "None", inline=True)
+        embed.add_field(name="Premium",         value="Yes" if is_prem else "No",  inline=True)
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`,prefix set <symbol>` — set server prefix (Admin)\n"
+                "`,prefix remove` — reset to `,` (Admin)\n"
+                "`,prefix self <symbol>` — personal prefix, all servers (Premium)\n"
+                "`,prefix selfremove` — remove personal prefix"
+            ),
+            inline=False
+        )
+        await ctx.reply(embed=embed)
+
+    @prefix.command(name="set")
+    @commands.has_permissions(administrator=True)
+    async def prefix_set(self, ctx, new_prefix: str = None):
+        """Set the server prefix (Admin only, max 3 chars)."""
+        if not new_prefix:
+            return await ctx.reply("Usage: `,prefix set <symbol>`")
+        if len(new_prefix) > 3:
+            return await ctx.reply("Prefix must be 3 characters or fewer.")
+        if new_prefix in ("<", ">", "@", "#"):
+            return await ctx.reply(f"`{new_prefix}` conflicts with Discord syntax.")
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)}, {"$set": {"prefix": new_prefix}}, upsert=True
+        )
+        await ctx.reply(f"Server prefix updated to `{new_prefix}`.")
+        await log_event(self.bot, ctx.guild, "prefix_change",
+                        f"{ctx.author} changed prefix to `{new_prefix}`.")
+
+    @prefix.command(name="remove")
+    @commands.has_permissions(administrator=True)
+    async def prefix_remove(self, ctx):
+        """Reset server prefix to the default `,`."""
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)}, {"$unset": {"prefix": ""}}, upsert=True
+        )
+        await ctx.reply("Server prefix reset to default `,`.")
+
+    @prefix.command(name="self")
+    @ctx_premium()
+    async def prefix_self(self, ctx, new_prefix: str = None):
+        """Set a personal prefix that works across ALL servers (Premium)."""
+        if not new_prefix:
+            return await ctx.reply("Usage: `,prefix self <symbol>`")
+        if len(new_prefix) > 3:
+            return await ctx.reply("Personal prefix must be 3 characters or fewer.")
+        await personal_prefix_col.update_one(
+            {"user_id": str(ctx.author.id)}, {"$set": {"prefix": new_prefix}}, upsert=True
+        )
+        await ctx.reply(f"Personal prefix set to `{new_prefix}` across all servers.")
+
+    @prefix.command(name="selfremove")
+    async def prefix_selfremove(self, ctx):
+        """Remove your personal prefix."""
+        result = await personal_prefix_col.delete_one({"user_id": str(ctx.author.id)})
+        await ctx.reply("Personal prefix removed." if result.deleted_count else "No personal prefix set.")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  ANNOUNCE
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command()
+    @ctx_mod()
+    async def announce(self, ctx, channel: discord.TextChannel = None, *, content: str = None):
+        """
+        Send an announcement embed.
+        Usage: `,announce [#channel] <message>`
+        Add --ping anywhere to include @everyone.
+        """
+        if not content:
+            if channel:
+                content = channel.name
+                channel = None
+            else:
+                return await ctx.reply(
+                    "Usage: `,announce [#channel] <message>`\n"
+                    "Add `--ping` to include @everyone."
+                )
+
+        ping    = "--ping" in content
+        content = content.replace("--ping", "").strip()
+        if not content:
+            return await ctx.reply("Message cannot be empty.")
+
+        target = channel or ctx.channel
+        embed  = discord.Embed(description=content, color=0x2B2D31, timestamp=datetime.now(timezone.utc))
+        embed.set_author(
+            name=ctx.guild.name,
+            icon_url=ctx.guild.icon.url if ctx.guild.icon else None
+        )
+        embed.set_footer(
+            text=f"Announced by {ctx.author.display_name}",
+            icon_url=ctx.author.display_avatar.url
+        )
+        await target.send(content="@everyone" if ping else None, embed=embed)
+        if target != ctx.channel:
+            await ctx.reply(f"Announcement sent to {target.mention}.", delete_after=5)
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+        await log_event(self.bot, ctx.guild, "announcement",
+                        f"{ctx.author} announced in {target.mention}. Ping: {ping}")
+
+    @app_commands.command(name="announce", description="Send a server announcement")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.describe(
+        title="Announcement heading",
+        description="Body text",
+        channel="Target channel (defaults to current)",
+        color="Hex color e.g. #FF5500",
+        ping_everyone="Ping @everyone"
+    )
+    async def slash_announce(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        description: str,
+        channel: discord.TextChannel = None,
+        color: str = None,
+        ping_everyone: bool = False
+    ):
+        target = channel or interaction.channel
+        try:
+            embed_color = int(color.replace("#", ""), 16) if color else 0x2B2D31
+        except:
+            embed_color = 0x2B2D31
+        embed = discord.Embed(
+            title=title, description=description,
+            color=embed_color, timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_author(
+            name=interaction.guild.name,
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
+        embed.set_footer(text=f"Announced by {interaction.user.display_name}")
+        await target.send(content="@everyone" if ping_everyone else None, embed=embed)
+        await interaction.response.send_message(f"Sent to {target.mention}.", ephemeral=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  GIVEAWAY
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.group(invoke_without_command=True)
+    @ctx_mod()
+    async def giveaway(self, ctx, duration: str = None, winners: int = 1, *, prize: str = None):
+        """
+        Start a giveaway.
+        Usage: `,giveaway <duration> <winners> <prize>`
+        Duration: 30m  2h  1d  or plain minutes
+        """
+        if not duration or not prize:
+            embed = discord.Embed(title="Giveaway Commands", color=0x2B2D31)
+            embed.add_field(
+                name="Start",
+                value="`,giveaway <duration> <winners> <prize>`\nDuration: `30m` `2h` `1d` or minutes",
+                inline=False
+            )
+            embed.add_field(name="End early", value="`,giveaway end <message_id>`",    inline=True)
+            embed.add_field(name="Reroll",    value="`,giveaway reroll <message_id>`", inline=True)
+            return await ctx.reply(embed=embed)
+
+        minutes = self._parse_duration(duration)
+        if minutes is None:
+            return await ctx.reply("Invalid duration. Use `30m`, `2h`, `1d`, or plain minutes.")
+        if minutes < 1:
+            return await ctx.reply("Minimum duration is 1 minute.")
+        if minutes > 43200:
+            return await ctx.reply("Maximum duration is 30 days.")
+
+        end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        ts       = int(end_time.timestamp())
+
+        embed = discord.Embed(
+            title=f"Giveaway — {prize}",
+            description=(
+                f"React with 🎉 to enter!\n\n"
+                f"Winners: **{winners}**\n"
+                f"Ends: <t:{ts}:R> (<t:{ts}:f>)"
+            ),
+            color=0x2B2D31
+        )
+        embed.set_footer(
+            text=f"Hosted by {ctx.author.display_name} • {winners} winner(s)",
+            icon_url=ctx.author.display_avatar.url
+        )
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+
+        msg = await ctx.channel.send(embed=embed)
+        await msg.add_reaction("🎉")
+
+        _active_giveaways[msg.id] = {
+            "prize":      prize,
+            "winners":    winners,
+            "channel_id": ctx.channel.id,
+            "host_id":    ctx.author.id,
+        }
+
+        await asyncio.sleep(minutes * 60)
+        await self._end_giveaway(ctx.channel, msg.id)
+
+    @giveaway.command(name="end")
+    @ctx_mod()
+    async def giveaway_end(self, ctx, message_id: int = None):
+        """End a running giveaway early."""
+        if not message_id:
+            return await ctx.reply("Usage: `,giveaway end <message_id>`")
+        try:
+            ch = ctx.channel
+            await self._end_giveaway(ch, message_id, force=True)
+            await ctx.reply("Giveaway ended.", delete_after=4)
+        except discord.NotFound:
+            await ctx.reply("Message not found in this channel.")
+
+    @giveaway.command(name="reroll")
+    @ctx_mod()
+    async def giveaway_reroll(self, ctx, message_id: int = None):
+        """Reroll winners for an ended giveaway."""
+        if not message_id:
+            return await ctx.reply("Usage: `,giveaway reroll <message_id>`")
+        data = _active_giveaways.get(message_id)
+        if not data:
+            return await ctx.reply("Giveaway not found in this session's memory.")
+        try:
+            msg      = await ctx.channel.fetch_message(message_id)
+            reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
+            if not reaction:
+                return await ctx.reply("No 🎉 reactions found on that message.")
+            users  = [u async for u in reaction.users() if not u.bot]
+            if not users:
+                return await ctx.reply("No valid entries to reroll from.")
+            chosen   = random.sample(users, min(data["winners"], len(users)))
+            mentions = ", ".join(w.mention for w in chosen)
+            await ctx.reply(embed=discord.Embed(
+                title="Giveaway Rerolled",
+                description=f"New winner(s) for **{data['prize']}**: {mentions}",
+                color=0xffd700
+            ))
+        except Exception as e:
+            await ctx.reply(f"Reroll error: {e}")
+
+    async def _end_giveaway(self, channel, msg_id: int, force: bool = False):
+        data = _active_giveaways.get(msg_id)
+        if not data:
+            return
+        try:
+            msg      = await channel.fetch_message(msg_id)
+            reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
+            if not reaction:
+                await channel.send(embed=discord.Embed(
+                    description=f"Giveaway for **{data['prize']}** ended — no entries.",
+                    color=0x2B2D31
+                ))
+                return
+            users = [u async for u in reaction.users() if not u.bot]
+            if not users:
+                await channel.send(embed=discord.Embed(
+                    description=f"Not enough entries for **{data['prize']}**.",
+                    color=0x2B2D31
+                ))
+                return
+            chosen   = random.sample(users, min(data["winners"], len(users)))
+            mentions = ", ".join(w.mention for w in chosen)
+            new_embed = discord.Embed(
+                title="Giveaway Ended",
+                description=f"Prize: **{data['prize']}**\nWinner(s): {mentions}",
+                color=discord.Color.gold()
+            )
+            new_embed.set_footer(text="Use ,giveaway reroll <message_id> to reroll")
+            await msg.edit(embed=new_embed)
+            await channel.send(f"Congratulations {mentions}! You won **{data['prize']}**!")
+        except Exception as e:
+            print(f"[Giveaway] _end_giveaway: {e}")
+
+    @staticmethod
+    def _parse_duration(s: str):
+        """Parse '30m', '2h', '1d' or plain int → minutes. Returns None on failure."""
+        m = re.fullmatch(r"(\d+)(m|h|d)?", s.strip().lower())
+        if not m:
+            return None
+        val, unit = int(m.group(1)), m.group(2) or "m"
+        return val * {"m": 1, "h": 60, "d": 1440}[unit]
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SLOWMODE
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command()
+    @ctx_mod()
+    async def slowmode(self, ctx, seconds: int = None, channel: discord.TextChannel = None):
+        """
+        Set channel slowmode.
+        Usage: `,slowmode <seconds> [#channel]`   — use 0 to disable.
+        """
+        if seconds is None:
+            return await ctx.reply("Usage: `,slowmode <seconds> [#channel]`\nUse `0` to disable. Max `21600`.")
+        if not 0 <= seconds <= 21600:
+            return await ctx.reply("Value must be between 0 and 21600 seconds.")
+        target = channel or ctx.channel
+        await target.edit(slowmode_delay=seconds)
+        msg = f"Slowmode {'disabled' if seconds == 0 else f'set to **{seconds}s**'} in {target.mention}."
+        await ctx.reply(msg)
+        await log_event(self.bot, ctx.guild, "slowmode",
+                        f"{ctx.author} set slowmode to {seconds}s in {target}.")
+
+    @app_commands.command(name="slowmode", description="Set channel slowmode delay")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    @app_commands.describe(seconds="0 to disable, max 21600", channel="Target channel")
+    async def slash_slowmode(self, interaction: discord.Interaction, seconds: int,
+                              channel: discord.TextChannel = None):
+        if not 0 <= seconds <= 21600:
+            return await interaction.response.send_message("Value must be 0–21600.", ephemeral=True)
+        target = channel or interaction.channel
+        await target.edit(slowmode_delay=seconds)
+        await interaction.response.send_message(
+            f"Slowmode {'disabled' if seconds == 0 else f'set to {seconds}s'} in {target.mention}.",
+            ephemeral=True
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  DISABLE / ENABLE COMMANDS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    _protected_cmds = {"settings", "prefix", "disable", "enable", "help",
+                       "premium", "maintenance", "aimode", "sync"}
+
+    @commands.command(name="disable")
+    @commands.has_permissions(administrator=True)
+    async def disable_command(self, ctx, *, cmd_name: str = None):
+        """Disable a bot command for this server. Usage: `,disable <command>`"""
+        if not cmd_name:
+            docs  = await disabled_cmds_col.find({"guild_id": str(ctx.guild.id)}).to_list(50)
+            names = [d["command_name"] for d in docs]
+            embed = discord.Embed(title="Disabled Commands", color=0x2B2D31)
+            embed.description = (
+                f"Disabled: {', '.join(f'`{n}`' for n in names) if names else 'None'}\n\n"
+                "`,disable <command>` — disable\n"
+                "`,enable <command>` — re-enable"
+            )
+            return await ctx.reply(embed=embed)
+
+        cmd_name = cmd_name.lower().strip()
+        if cmd_name in self._protected_cmds:
+            return await ctx.reply(f"`{cmd_name}` cannot be disabled.")
+        if not self.bot.get_command(cmd_name):
+            return await ctx.reply(f"Command `{cmd_name}` not found.")
+        await disabled_cmds_col.update_one(
+            {"guild_id": str(ctx.guild.id), "command_name": cmd_name},
+            {"$set": {"guild_id": str(ctx.guild.id), "command_name": cmd_name}},
+            upsert=True
+        )
+        await ctx.reply(f"Command `{cmd_name}` disabled in this server.")
+
+    @commands.command(name="enable")
+    @commands.has_permissions(administrator=True)
+    async def enable_command(self, ctx, *, cmd_name: str = None):
+        """Re-enable a disabled command. Usage: `,enable <command>`"""
+        if not cmd_name:
+            return await ctx.reply("Usage: `,enable <command_name>`")
+        result = await disabled_cmds_col.delete_one(
+            {"guild_id": str(ctx.guild.id), "command_name": cmd_name.lower().strip()}
+        )
+        await ctx.reply(
+            f"Command `{cmd_name}` re-enabled." if result.deleted_count
+            else f"`{cmd_name}` was not disabled."
+        )
+
+    @commands.Cog.listener()
+    async def on_command(self, ctx):
+        """Block disabled commands before they execute."""
+        if not ctx.guild or ctx.author.id == BOT_OWNER_ID or ctx.command is None:
+            return
+        doc = await disabled_cmds_col.find_one(
+            {"guild_id": str(ctx.guild.id), "command_name": ctx.command.name}
+        )
+        if doc:
+            await ctx.reply(
+                f"`{ctx.command.name}` is disabled in this server.", delete_after=6
+            )
+            raise commands.DisabledCommand()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  PREMIUM ROLE
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def premiumrole(self, ctx, role: discord.Role = None):
+        """
+        Set which role grants premium AI access.
+        Members who receive this role automatically get AI chat.
+        """
+        if not role:
+            gs  = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+            rid = gs.get("premium_role_id")
+            cur = ctx.guild.get_role(rid) if rid else None
+            return await ctx.reply(
+                f"Current premium role: {cur.mention if cur else 'Not set'}\n"
+                f"Usage: `,premiumrole @role`"
+            )
+        await update_server_data(ctx.guild.id, "premium_role_id", role.id)
+        await ctx.reply(
+            f"Premium role set to {role.mention}. Members with this role get AI chat access."
+        )
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Auto-grant/revoke per-user premium when a member gains/loses the premium role."""
+        gs  = await settings_col.find_one({"_id": str(after.guild.id)}) or {}
+        rid = gs.get("premium_role_id")
+        if not rid:
+            return
+        had = discord.utils.get(before.roles, id=rid) is not None
+        has = discord.utils.get(after.roles,  id=rid) is not None
+        if not had and has:
+            await premium_col.update_one(
+                {"type": "user", "id": str(after.id)},
+                {"$set": {"type": "user", "id": str(after.id),
+                           "via_role": True, "guild_id": str(after.guild.id)}},
+                upsert=True
+            )
+        elif had and not has:
+            await premium_col.delete_one(
+                {"type": "user", "id": str(after.id),
+                 "via_role": True, "guild_id": str(after.guild.id)}
+            )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  CHANNEL TOOLS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command()
+    @ctx_mod()
+    async def topic(self, ctx, *, text: str = None):
+        """Set or clear the current channel's topic."""
+        await ctx.channel.edit(topic=text or "")
+        await ctx.reply(
+            f"Channel topic {'updated' if text else 'cleared'}.", delete_after=5
+        )
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+
+    @commands.command()
+    @ctx_mod()
+    async def rename(self, ctx, *, name: str = None):
+        """Rename the current channel."""
+        if not name:
+            return await ctx.reply("Usage: `,rename <new name>`")
+        old = ctx.channel.name
+        await ctx.channel.edit(name=name)
+        await ctx.reply(f"Channel renamed: `{old}` → `{name}`.")
+        await log_event(self.bot, ctx.guild, "channel_rename",
+                        f"{ctx.author} renamed #{old} → #{name}.")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  OWNER TOOLS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command()
+    @ctx_owner()
+    async def maintenance(self, ctx, status: str = None):
+        """Toggle maintenance mode (owner only)."""
+        if not hasattr(self.bot, "maintenance"):
+            self.bot.maintenance = False
+        if not status:
+            state = "ON" if self.bot.maintenance else "OFF"
+            return await ctx.reply(f"Maintenance mode: **{state}**.")
+        self.bot.maintenance = status.lower() in ("on", "true", "1", "yes")
+        state = "ON" if self.bot.maintenance else "OFF"
+        await ctx.reply(embed=discord.Embed(
+            description=f"Maintenance mode: **{state}**.",
+            color=0xff4444 if self.bot.maintenance else 0x2B2D31
+        ))
+
+    @commands.command()
+    @ctx_owner()
+    async def aimode(self, ctx, status: str = None):
+        """Toggle AI chat globally (owner only)."""
+        if not hasattr(self.bot, "ai_enabled"):
+            self.bot.ai_enabled = True
+        if not status:
+            state = "ON" if self.bot.ai_enabled else "OFF"
+            return await ctx.reply(f"AI chat globally: **{state}**.")
+        self.bot.ai_enabled = status.lower() in ("on", "true", "1", "yes")
+        state = "ON" if self.bot.ai_enabled else "OFF"
+        await ctx.reply(embed=discord.Embed(
+            description=f"AI chat globally: **{state}**.", color=0x2B2D31
+        ))
+
+    @commands.command()
+    @ctx_owner()
+    async def botstatus(self, ctx, activity: str = None, *, text: str = None):
+        """
+        Manually override bot status (owner only).
+        Usage: `,botstatus watching Servers`
+        Types: watching, playing, listening, competing
+        Use `,botstatus reset` to return to the rotating loop.
+        """
+        if not activity or activity.lower() == "reset":
+            return await ctx.reply("Bot status reset to rotating loop.")
+        types = {
+            "watching":  discord.ActivityType.watching,
+            "playing":   discord.ActivityType.playing,
+            "listening": discord.ActivityType.listening,
+            "competing": discord.ActivityType.competing,
+        }
+        atype = types.get(activity.lower())
+        if not atype:
+            return await ctx.reply("Types: watching, playing, listening, competing")
+        if not text:
+            return await ctx.reply(f"Usage: `,botstatus {activity} <text>`")
+        await self.bot.change_presence(activity=discord.Activity(type=atype, name=text))
+        await ctx.reply(f"Status: **{activity}** `{text}`.")
+
+    @commands.command(aliases=["guildlist"])
+    @ctx_owner()
+    async def serverlist(self, ctx):
+        """List all servers the bot is in (owner only)."""
+        guilds = sorted(self.bot.guilds, key=lambda g: g.member_count, reverse=True)
+        lines  = [
+            f"`{i+1}.` **{g.name}** — {g.member_count} members (ID: {g.id})"
+            for i, g in enumerate(guilds[:20])
+        ]
+        embed = discord.Embed(
+            title=f"Servers ({len(self.bot.guilds)} total)",
+            description="\n".join(lines) + (f"\n…and {len(guilds)-20} more" if len(guilds) > 20 else ""),
+            color=0x2B2D31
+        )
+        await ctx.reply(embed=embed)
+
+    @commands.command()
+    @ctx_owner()
+    async def leaveguild(self, ctx, guild_id: int = None):
+        """Force the bot to leave a server by ID (owner only)."""
+        if not guild_id:
+            return await ctx.reply("Usage: `,leaveguild <guild_id>`")
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return await ctx.reply(f"Server `{guild_id}` not found.")
+        name = guild.name
+        await guild.leave()
+        await ctx.reply(f"Left **{name}**.")
+
+    @commands.command()
+    @ctx_owner()
+    async def dm(self, ctx, user: discord.User = None, *, message: str = None):
+        """Send a DM to any user as the bot (owner only)."""
+        if not user or not message:
+            return await ctx.reply("Usage: `,dm @user <message>`")
+        try:
+            await user.send(message)
+            await ctx.reply(f"DM sent to **{user}**.")
+        except discord.Forbidden:
+            await ctx.reply(f"Cannot DM **{user}** — DMs may be closed.")
+
+    @commands.command()
+    @ctx_owner()
+    async def sync(self, ctx, guild_id: int = None):
+        """
+        Sync slash commands (owner only).
+        `,sync` — global   |   `,sync <guild_id>` — instant guild sync
+        """
+        if guild_id:
+            g = discord.Object(id=guild_id)
+            self.bot.tree.copy_global_to(guild=g)
+            synced = await self.bot.tree.sync(guild=g)
+            await ctx.reply(f"Synced {len(synced)} commands to guild `{guild_id}`.")
+        else:
+            synced = await self.bot.tree.sync()
+            await ctx.reply(f"Globally synced {len(synced)} slash commands.")
+
+
+async def setup(bot):
+    await bot.add_cog(Admin(bot))

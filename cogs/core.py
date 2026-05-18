@@ -90,6 +90,10 @@ class Core(commands.Cog):
                 ))
 
     # ── Global message handler ─────────────────────────────────────────────────
+    # NOTE: This Cog listener handles SIDE EFFECTS only (AFK, sticky, XP, etc.)
+    # process_commands is intentionally NOT called here.
+    # discord.py's Bot.on_message fires automatically and handles command dispatch.
+    # Calling process_commands here too would cause every command to run TWICE.
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
@@ -97,8 +101,7 @@ class Core(commands.Cog):
             return
 
         if not message.guild:
-            await self.bot.process_commands(message)
-            return
+            return   # DMs: let Bot.on_message handle process_commands
 
         # ── 1. Anti-invite ──────────────────────────────────────────────────
         gs = await settings_col.find_one({"_id": str(message.guild.id)})
@@ -208,7 +211,8 @@ class Core(commands.Cog):
         if call_cog:
             await call_cog.relay_call(message)
 
-        await self.bot.process_commands(message)
+        # NOTE: No process_commands here. Bot.on_message handles it automatically.
+        # Adding it here would cause double command execution.
 
     # ── Bump reminder helper ───────────────────────────────────────────────────
     async def _check_disboard_bump(self, message: discord.Message):

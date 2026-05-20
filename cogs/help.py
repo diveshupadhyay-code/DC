@@ -1,277 +1,549 @@
 """
-cogs/help.py — Permission-aware help system.
-Shows only commands the user can actually use.
+cogs/help.py — Permission-aware, category-based help system.
+Shows only commands the user can actually run based on their role.
+Dynamically fetches the server prefix.
 """
 
 import discord
 from discord.ext import commands
 from discord import app_commands
 
-from utils.helpers import (
-    BOT_OWNER_ID, is_premium_user, is_premium_server
-)
+from utils.db import settings_col
+from utils.helpers import BOT_OWNER_ID, is_premium_user, is_premium_server
 
-# ── Command registry ──────────────────────────────────────────────────────────
-# Each entry: (command, description, min_permission, is_premium)
-# min_permission: "everyone" | "mod" | "admin" | "owner"
-
-COMMANDS = [
-    # ── Everyone ──────────────────────────────────────────────────────────────
-    ("ping",             "Check bot latency",                               "everyone", False),
-    ("userinfo [@user]", "View detailed info about a member",               "everyone", False),
-    ("avatar [@user]",   "View a member's avatar",                          "everyone", False),
-    ("serverinfo",       "View server statistics",                          "everyone", False),
-    ("membercount",      "View member/bot count",                           "everyone", False),
-    ("level [@user]",    "Check XP and level",                              "everyone", False),
-    ("leaderboard",      "Top 10 members by level",                         "everyone", False),
-    ("profile [@user]",  "View profile card",                               "everyone", False),
-    ("profile bio",      "Set your bio",                                    "everyone", False),
-    ("profile location", "Set your location",                               "everyone", False),
-    ("birthday [@user]", "View a member's birthday",                        "everyone", False),
-    ("birthday set DD/MM","Set your birthday",                              "everyone", False),
-    ("afk [reason]",     "Set AFK status",                                  "everyone", False),
-    ("ship @u1 @u2",     "Love compatibility check",                        "everyone", False),
-    ("hot [@user]",      "Hotness meter",                                   "everyone", False),
-    ("8ball <question>", "Ask the magic 8-ball",                            "everyone", False),
-    ("coinflip",         "Flip a coin",                                     "everyone", False),
-    ("dice [sides]",     "Roll a dice",                                     "everyone", False),
-    ("wouldyourather",   "Random would-you-rather question",                "everyone", False),
-    ("hug/pat/slap/kiss","Roleplay actions",                                "everyone", False),
-    ("boop/wave/stare",  "More roleplay actions",                           "everyone", False),
-    ("bonk/cuddle/highfive","Even more roleplay actions",                   "everyone", False),
-    ("roast [@user]",    "Gently roast someone",                            "everyone", False),
-    ("praise [@user]",   "Send a compliment",                               "everyone", False),
-    ("translate <lang>", "Translate text to any language",                  "everyone", False),
-    ("urban <word>",     "Urban Dictionary lookup",                         "everyone", False),
-    ("shrug [text]",     "Send a shrug",                                    "everyone", False),
-    ("prefix",           "View prefix info",                                "everyone", False),
-    ("prefix self",      "Personal prefix across all servers",              "everyone", True),
-
-    # ── Moderator ─────────────────────────────────────────────────────────────
-    ("kick @user",       "Kick a member",                                   "mod", False),
-    ("ban @user",        "Ban a member",                                    "mod", False),
-    ("unban <id>",       "Unban a user by ID",                              "mod", False),
-    ("mute @user [min]", "Timeout a member",                                "mod", False),
-    ("unmute @user",     "Remove timeout",                                  "mod", False),
-    ("warn @user",       "Warn a member",                                   "mod", False),
-    ("warnings [@user]", "View warnings for a member",                      "mod", False),
-    ("clearwarns @user", "Clear all warnings for a member",                 "mod", False),
-    ("softban @user",    "Ban + unban (clear messages)",                    "mod", False),
-    ("nickname @user",   "Change or reset a nickname",                      "mod", False),
-    ("lock [#channel]",  "Lock a channel",                                  "mod", False),
-    ("unlock [#channel]","Unlock a channel",                                "mod", False),
-    ("vclock [#vc]",     "Lock a voice channel",                            "mod", False),
-    ("vcunlock [#vc]",   "Unlock a voice channel",                          "mod", False),
-    ("purge <amount>",   "Delete messages (also: bots, @user, links, images)", "mod", False),
-    ("jail @user",       "Put a member in jail",                            "mod", False),
-    ("unjail @user",     "Release a member from jail",                      "mod", False),
-    ("sticky <text>",    "Set a sticky message",                            "mod", False),
-    ("unsticky",         "Remove sticky message",                           "mod", False),
-    ("announce <msg>",   "Send an announcement",                            "mod", False),
-    ("giveaway <min> <w>","Start a giveaway",                              "mod", False),
-    ("mimic @user <msg>","Send message as another member",                  "mod", False),
-    ("echo [#ch] <msg>", "Send a message as the bot",                       "mod", False),
-    ("ticket close",     "Close the current ticket",                        "mod", False),
-    ("ticket add/remove","Add or remove users from a ticket",               "mod", False),
-    ("hangup",           "End a global call",                               "mod", False),
-    ("call",             "Connect to another server (global call)",         "mod", True),
-
-    # ── Admin ─────────────────────────────────────────────────────────────────
-    ("settings",         "View server configuration dashboard",             "admin", False),
-    ("prefix set",       "Change the server prefix",                        "admin", False),
-    ("prefix remove",    "Reset server prefix",                             "admin", False),
-    ("welcome set/enable/disable","Configure welcome messages",             "admin", False),
-    ("bye set/enable/disable",   "Configure bye messages",                  "admin", False),
-    ("logs set/disable", "Configure log channel",                           "admin", False),
-    ("automod invite on/off","Toggle anti-invite blocker",                  "admin", False),
-    ("role add/remove",  "Add or remove roles from members",                "admin", False),
-    ("massrole add/remove","Give or take a role from all members",          "admin", False),
-    ("reactionrole add", "Set up a reaction role",                          "admin", False),
-    ("buttonrole",       "Create button role panel",                        "admin", True),
-    ("boosterrole",      "Set reward role for boosters",                    "admin", False),
-    ("ticket setup",     "Send ticket creation panel",                      "admin", False),
-    ("ticket staffrole", "Set staff role for ticket access",                "admin", False),
-    ("jailsetup",        "Create jail role and channel",                    "admin", False),
-    ("setupmute",        "Create Muted/Image/Reaction Muted roles",         "admin", False),
-    ("quicksetup",       "Auto-create channels, roles, categories",         "admin", False),
-    ("embed create/send","Interactive embed builder",                       "admin", False),
-    ("counter create",   "Live member/bot/channel counter in VC",           "admin", False),
-    ("lockdown",         "Lock ALL channels (emergency)",                   "admin", False),
-    ("unlockdown",       "Lift server lockdown",                            "admin", False),
-    ("premiumrole",      "Set the Premium Members role",                    "admin", False),
-    ("setstatus <text>", "Custom bot status for your server",               "admin", True),
-    ("bumpreminder on/off","DISBOARD bump reminder",                       "admin", True),
-    ("vcsetup",          "Set up VoiceMaster temp VCs",                     "admin", True),
-    ("setlevel @user",   "Manually set a member's level",                   "admin", False),
-    ("resetxp [@user]",  "Reset XP for member or server",                  "admin", False),
-
-    # ── Owner ─────────────────────────────────────────────────────────────────
-    ("premium add/remove/list","Manage premium servers and users",          "owner", False),
-    ("aimode on/off",    "Toggle AI chat globally",                         "owner", False),
-    ("maintenance on/off","Toggle maintenance mode",                        "owner", False),
-]
-
-PERM_ORDER = {"everyone": 0, "mod": 1, "admin": 2, "owner": 3}
-
+# ── Permission levels ─────────────────────────────────────────────────────────
+PERM_ORDER  = {"everyone": 0, "mod": 1, "admin": 2, "owner": 3}
 PERM_LABELS = {
-    "everyone": "Everyone",
+    "everyone": "Member",
     "mod":      "Moderator",
     "admin":    "Administrator",
     "owner":    "Bot Owner",
 }
+PERM_COLORS = {
+    "everyone": 0x2B2D31,
+    "mod":      0x5865F2,
+    "admin":    0xED4245,
+    "owner":    0xffd700,
+}
 
 
-def _user_level(author: discord.Member, guild: discord.Guild, owner_id: int) -> str:
-    if author.id == owner_id:
+def _user_level(member: discord.Member, owner_id: int) -> str:
+    if member.id == owner_id:
         return "owner"
-    if author.guild_permissions.administrator:
+    if member.guild_permissions.administrator:
         return "admin"
-    p = author.guild_permissions
-    if p.manage_messages or p.kick_members or p.manage_roles:
+    p = member.guild_permissions
+    if p.manage_messages or p.kick_members or p.manage_roles or p.ban_members:
         return "mod"
     return "everyone"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  COMPLETE COMMAND REGISTRY
+#  Format: (syntax, description, permission_level, is_premium)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# category → list of (syntax, description, perm, premium)
+REGISTRY = {
+
+    # ── FUN ───────────────────────────────────────────────────────────────────
+    "fun": [
+        ("ship @user1 @user2",  "Love compatibility between two members",        "everyone", False),
+        ("hot [@user]",         "Hotness meter (consistent per user)",           "everyone", False),
+        ("8ball <question>",    "Ask the magic 8-ball",                          "everyone", False),
+        ("coinflip",            "Flip a coin",                                   "everyone", False),
+        ("dice [sides]",        "Roll a dice — default d6, up to d1000",         "everyone", False),
+        ("wouldyourather",      "Random would-you-rather question with vote",    "everyone", False),
+        ("roast [@user]",       "Send a gentle roast",                           "everyone", False),
+        ("praise [@user]",      "Send a compliment",                             "everyone", False),
+        ("shrug [text]",        "Post a shrug — ¯\\_(ツ)_/¯",                   "everyone", False),
+    ],
+
+    # ── ROLEPLAY ──────────────────────────────────────────────────────────────
+    "roleplay": [
+        ("hug [@user]",         "Hug someone",                                   "everyone", False),
+        ("pat [@user]",         "Pat someone on the head",                       "everyone", False),
+        ("slap [@user]",        "Slap someone",                                  "everyone", False),
+        ("kiss [@user]",        "Give someone a kiss",                           "everyone", False),
+        ("poke [@user]",        "Poke someone repeatedly",                       "everyone", False),
+        ("highfive [@user]",    "High-five someone",                             "everyone", False),
+        ("bonk [@user]",        "Bonk someone with the hammer",                  "everyone", False),
+        ("cuddle [@user]",      "Cuddle up with someone",                        "everyone", False),
+        ("boop [@user]",        "Boop someone's nose",                           "everyone", False),
+        ("wave [@user]",        "Wave at someone",                               "everyone", False),
+        ("stare [@user]",       "Stare intensely at someone",                    "everyone", False),
+    ],
+
+    # ── UTILITY ───────────────────────────────────────────────────────────────
+    "utility": [
+        ("ping",                "Check bot latency",                             "everyone", False),
+        ("userinfo [@user]",    "View detailed info about a member",             "everyone", False),
+        ("avatar [@user]",      "View a member's avatar in full size",           "everyone", False),
+        ("serverinfo",          "View server stats (members, roles, boosts)",    "everyone", False),
+        ("membercount",         "Member, human, and bot count",                  "everyone", False),
+        ("translate <lang> <text>","Translate text to any language",             "everyone", False),
+        ("urban <word>",        "Urban Dictionary definition lookup",            "everyone", False),
+        ("afk [reason]",        "Set AFK status — bot notifies when you're pinged","everyone", False),
+        ("mimic @user <msg>",   "Send a message as another member via webhook",  "mod",      False),
+        ("echo [#channel] <msg>","Send a message as the bot",                   "mod",      False),
+    ],
+
+    # ── PROFILE ───────────────────────────────────────────────────────────────
+    "profile": [
+        ("profile [@user]",     "View your or someone's profile card",           "everyone", False),
+        ("profile bio <text>",  "Set your profile bio (max 150 chars)",          "everyone", False),
+        ("profile location <city>","Set your location on your profile",          "everyone", False),
+        ("birthday [@user]",    "View a member's birthday",                      "everyone", False),
+        ("birthday set DD/MM",  "Set your birthday — bot wishes you on the day", "everyone", False),
+    ],
+
+    # ── LEVELS ────────────────────────────────────────────────────────────────
+    "levels": [
+        ("level [@user]",       "View XP, level, and progress bar",              "everyone", False),
+        ("leaderboard",         "Top 10 most active members by level",           "everyone", False),
+        ("setlevel @user <n>",  "Manually set a member's level",                 "admin",    False),
+        ("resetxp [@user]",     "Reset XP for one member or the whole server",   "admin",    False),
+    ],
+
+    # ── MODERATION ────────────────────────────────────────────────────────────
+    "mod": [
+        ("kick @user [reason]",         "Kick a member — DMs them first",               "mod",   False),
+        ("ban @user [reason]",          "Permanently ban a member",                     "mod",   False),
+        ("tempban @user <dur> [reason]","Temporarily ban — auto-unbans (10m/2h/7d)",    "mod",   False),
+        ("unban <user_id> [reason]",    "Unban a user by ID",                           "mod",   False),
+        ("mute @user [dur] [reason]",   "Timeout a member (10m/2h/7d, max 28d)",        "mod",   False),
+        ("unmute @user",                "Remove a member's timeout",                    "mod",   False),
+        ("warn @user [reason]",         "Warn a member — tracked in database",          "mod",   False),
+        ("warnings [@user]",            "View warning count for a member",              "mod",   False),
+        ("clearwarns @user",            "Clear all warnings for a member",              "mod",   False),
+        ("softban @user [reason]",      "Ban + unban — clears 7 days of messages",      "mod",   False),
+        ("nickname @user [name]",       "Change or reset a member's nickname",          "mod",   False),
+        ("note @user",                  "View private mod notes for a member",          "mod",   False),
+        ("note add @user <text>",       "Add a private mod note",                       "mod",   False),
+        ("note clear @user",            "Clear all mod notes for a member",             "mod",   False),
+        ("cases @user [limit]",         "View case history for a member",               "mod",   False),
+        ("case <number>",               "View a specific case by number",               "mod",   False),
+        ("purge <amount>",              "Delete recent messages",                        "mod",   False),
+        ("purge bots <amount>",         "Delete bot messages only",                     "mod",   False),
+        ("purge @user <amount>",        "Delete a specific user's messages",            "mod",   False),
+        ("purge links <amount>",        "Delete messages containing links",             "mod",   False),
+        ("purge images <amount>",       "Delete messages with attachments",             "mod",   False),
+        ("purge embeds <amount>",       "Delete messages with embeds",                  "mod",   False),
+        ("lock [#channel] [reason]",    "Lock a text/voice/thread/forum channel",       "mod",   False),
+        ("unlock [#channel]",           "Unlock a channel",                             "mod",   False),
+        ("vclock [#vc]",                "Lock a voice channel (prevents joins)",        "mod",   False),
+        ("vcunlock [#vc]",              "Unlock a voice channel",                       "mod",   False),
+        ("lockdown [reason]",           "Lock ALL channels — emergency use",            "admin", False),
+        ("unlockdown",                  "Lift the server lockdown",                     "admin", False),
+        ("jail @user [reason]",         "Strip roles and move member to jail channel",  "mod",   False),
+        ("unjail @user",                "Release member from jail and restore roles",   "mod",   False),
+        ("sticky <text>",               "Pin a sticky message that re-appears",         "mod",   False),
+        ("unsticky",                    "Remove sticky message from this channel",      "mod",   False),
+        ("slowmode <seconds> [#ch]",    "Set channel slowmode (0 to disable)",          "mod",   False),
+        ("topic [text]",                "Set or clear the channel topic",               "mod",   False),
+        ("rename <name>",               "Rename the current channel",                   "mod",   False),
+    ],
+
+    # ── ANTISPAM ──────────────────────────────────────────────────────────────
+    "antispam": [
+        ("antispam",                    "View anti-spam configuration",                 "admin", False),
+        ("antispam enable",             "Enable the anti-spam system",                  "admin", False),
+        ("antispam disable",            "Disable the anti-spam system",                 "admin", False),
+        ("antispam set <n> <action>",   "Set threshold + action (mute/kick/ban)",       "admin", False),
+    ],
+
+    # ── ROLES ─────────────────────────────────────────────────────────────────
+    "roles": [
+        ("role add @user @role",        "Add a role to a member",                       "admin", False),
+        ("role remove @user @role",     "Remove a role from a member",                  "admin", False),
+        ("massrole add everyone @role", "Give a role to all members",                   "admin", False),
+        ("massrole add bots @role",     "Give a role to all bots",                      "admin", False),
+        ("massrole remove everyone @role","Remove a role from all members",             "admin", False),
+        ("reactionrole add <link> <emoji> @role","Set up a reaction role",             "admin", False),
+        ("buttonrole @role Label | ...", "Create a button role panel",                 "admin", True),
+        ("boosterrole @role",           "Set a reward role for server boosters",        "admin", False),
+    ],
+
+    # ── TICKETS ───────────────────────────────────────────────────────────────
+    "tickets": [
+        ("ticket setup",                "Send the ticket creation panel",               "admin", False),
+        ("ticket staffrole @role",      "Set which role can see all tickets",           "admin", False),
+        ("ticket close",                "Close and delete this ticket channel",         "mod",   False),
+        ("ticket add @user",            "Add a user to this ticket",                    "mod",   False),
+        ("ticket remove @user",         "Remove a user from this ticket",               "mod",   False),
+    ],
+
+    # ── SERVER SETUP ──────────────────────────────────────────────────────────
+    "setup": [
+        ("quicksetup",                  "Auto-create channels, categories, and roles",  "admin", False),
+        ("jailsetup",                   "Create Jailed role + private jail channel",    "admin", False),
+        ("setupmute",                   "Create Muted/Image Muted/Reaction Muted roles","admin", False),
+        ("welcome set #channel",        "Set the welcome message channel",              "admin", False),
+        ("welcome enable/disable",      "Turn welcome messages on or off",              "admin", False),
+        ("welcome test",                "Preview the welcome message",                  "admin", False),
+        ("bye set #channel",            "Set the bye message channel",                  "admin", False),
+        ("bye enable/disable",          "Turn bye messages on or off",                  "admin", False),
+        ("bye test",                    "Preview the bye message",                      "admin", False),
+        ("logs set #channel",           "Set the moderation log channel",               "admin", False),
+        ("logs disable",                "Disable logging",                              "admin", False),
+        ("automod invite on/off",       "Block Discord invite links server-wide",       "admin", False),
+        ("counter create <type> #vc",   "Live counter in a VC name (members/bots/channels)","admin", False),
+    ],
+
+    # ── ADMIN ─────────────────────────────────────────────────────────────────
+    "admin": [
+        ("settings",                    "Full server configuration dashboard",          "admin", False),
+        ("prefix",                      "View prefix info",                             "everyone", False),
+        ("prefix set <symbol>",         "Change server prefix (max 3 chars)",           "admin", False),
+        ("prefix remove",               "Reset server prefix to default ,",             "admin", False),
+        ("prefix self <symbol>",        "Personal prefix across all servers",           "everyone", True),
+        ("prefix selfremove",           "Remove your personal prefix",                  "everyone", False),
+        ("premiumrole @role",           "Set the role that grants premium AI access",   "admin", False),
+        ("disable <command>",           "Disable a command for this server",            "admin", False),
+        ("enable <command>",            "Re-enable a disabled command",                 "admin", False),
+        ("announce [#ch] <message>",    "Send an announcement embed (add --ping for @everyone)","mod",False),
+        ("giveaway <dur> <winners> <prize>","Start a giveaway (30m/2h/1d)",           "mod",   False),
+        ("giveaway end <msg_id>",       "End a giveaway early",                         "mod",   False),
+        ("giveaway reroll <msg_id>",    "Reroll winners for an ended giveaway",         "mod",   False),
+        ("embed create",                "Start a new embed draft",                      "admin", False),
+        ("embed title/description/color/thumbnail","Edit your embed draft fields",      "admin", False),
+        ("embed send [#channel]",       "Send the finished embed",                      "admin", False),
+    ],
+
+    # ── PREMIUM ───────────────────────────────────────────────────────────────
+    "premium": [
+        ("mypremium",                   "Check your premium status and unlocked features",   "everyone", False),
+        ("call",                        "Connect this channel to another server live",        "admin",    True),
+        ("callinfo",                    "View current call status and queue position",        "everyone", False),
+        ("hangup",                      "End the cross-server call or leave the queue",       "mod",      False),
+        ("vcsetup",                     "View VoiceMaster config and status",                 "admin",    True),
+        ("vcsetup create",              "Create the 'Join to Create' trigger channel",        "admin",    True),
+        ("vcsetup limit <n>",           "Set default user limit for temp VCs (0 = unlimited)","admin",   True),
+        ("vcsetup name <template>",     "Set VC name template — use {user} for member name",  "admin",    True),
+        ("vcsetup remove",              "Remove VoiceMaster and delete all temp VCs",         "admin",    True),
+        ("bumpreminder on/off",         "DISBOARD bump reminder — pings 2h after bump",       "admin",    True),
+        ("setstatus <text>",            "Add custom text to bot's rotating status pool",      "admin",    True),
+        ("prefix self <symbol>",        "Personal prefix that works in all servers",          "everyone", True),
+        ("prefix selfremove",           "Remove your personal prefix",                        "everyone", False),
+    ],
+
+    # ── OWNER ─────────────────────────────────────────────────────────────────
+    "owner": [
+        ("premium add server <id>",     "Activate premium for a server",                "owner", False),
+        ("premium add user <id>",       "Activate premium for a user",                  "owner", False),
+        ("premium remove server/user <id>","Remove premium access",                    "owner", False),
+        ("premium list",                "List all active premium entries",               "owner", False),
+        ("aimode on/off",               "Toggle AI chat globally across all servers",   "owner", False),
+        ("maintenance on/off",          "Toggle maintenance mode",                       "owner", False),
+        ("botstatus <type> <text>",     "Override bot status (watching/playing/listening)","owner",False),
+        ("serverlist",                  "List all servers the bot is in",               "owner", False),
+        ("leaveguild <guild_id>",       "Force the bot to leave a server",              "owner", False),
+        ("dm @user <message>",          "Send a DM to any user as the bot",             "owner", False),
+        ("sync [guild_id]",             "Sync slash commands globally or to one guild", "owner", False),
+    ],
+}
+
+# Flat list for search
+ALL_COMMANDS = [
+    (cat, syn, desc, perm, prem)
+    for cat, entries in REGISTRY.items()
+    for syn, desc, perm, prem in entries
+]
+
+# ── Category metadata ──────────────────────────────────────────────────────────
+CAT_META = {
+    "fun":      ("Fun",         "Ship, 8ball, dice, coinflip, roast, praise"),
+    "roleplay": ("Roleplay",    "Hug, pat, slap, kiss, bonk, cuddle, wave, stare..."),
+    "utility":  ("Utility",     "Ping, userinfo, avatar, translate, urban, AFK"),
+    "profile":  ("Profile",     "Profile card, bio, location, birthday"),
+    "levels":   ("Levels",      "XP system, level, leaderboard"),
+    "mod":      ("Moderation",  "Kick, ban, mute, warn, lock, purge, jail, slowmode"),
+    "antispam": ("Anti-Spam",   "Auto-detect and punish spam floods"),
+    "roles":    ("Roles",       "Reaction roles, button roles, booster reward roles"),
+    "tickets":  ("Tickets",     "Multi-purpose support ticket system"),
+    "setup":    ("Server Setup","Welcome, bye, logs, automod, counters, quicksetup"),
+    "admin":    ("Admin",       "Settings, prefix, announcements, giveaways, embeds"),
+    "premium":  ("Premium",     "Global call, VoiceMaster, bump reminder, custom status"),
+    "owner":    ("Owner",       "Premium management, AI toggle, server tools"),
+}
 
 
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(aliases=["h", "commands"])
-    async def help(self, ctx, *, category: str = None):
+    async def _get_prefix(self, ctx) -> str:
+        """Fetch the actual server prefix."""
+        try:
+            data = await settings_col.find_one({"_id": str(ctx.guild.id)})
+            return data.get("prefix", ",") if data else ","
+        except:
+            return ","
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  MAIN HELP COMMAND
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @commands.command(aliases=["h", "commands", "cmds"])
+    async def help(self, ctx, *, query: str = None):
         """
-        Smart permission-aware help.
-        Usage: `,help` | `,help mod` | `,help admin` | `,help fun` | `,help premium`
+        Permission-aware help system.
+        Usage:
+          ,help                — main menu
+          ,help <category>     — category command list
+          ,help <command>      — search for a specific command
+        Categories: fun roleplay utility profile levels mod antispam
+                    roles tickets setup admin premium owner
         """
-        user_level = _user_level(ctx.author, ctx.guild, BOT_OWNER_ID)
-        is_prem    = await is_premium_user(ctx.author.id) or await is_premium_server(ctx.guild.id)
+        pfx        = await self._get_prefix(ctx)
+        user_level = _user_level(ctx.author, BOT_OWNER_ID)
+        is_prem    = (
+            ctx.author.id == BOT_OWNER_ID or
+            await is_premium_user(ctx.author.id) or
+            await is_premium_server(ctx.guild.id)
+        )
 
-        # ── Category filters ──────────────────────────────────────────────────
-        CATEGORY_MAP = {
-            "fun":       ["ship", "hot", "8ball", "coinflip", "dice", "wouldyourather",
-                          "hug", "pat", "slap", "kiss", "poke", "highfive", "bonk",
-                          "cuddle", "boop", "wave", "stare", "roast", "praise", "shrug"],
-            "utility":   ["ping", "userinfo", "avatar", "serverinfo", "membercount",
-                          "translate", "urban", "shrug", "level", "leaderboard"],
-            "profile":   ["profile", "birthday", "afk"],
-            "mod":       ["kick", "ban", "unban", "mute", "unmute", "warn", "warnings",
-                          "clearwarns", "softban", "nickname", "lock", "unlock", "vclock",
-                          "vcunlock", "purge", "jail", "unjail", "sticky", "unsticky",
-                          "announce", "giveaway", "mimic", "echo", "lockdown", "unlockdown"],
-            "roles":     ["role", "massrole", "reactionrole", "buttonrole", "boosterrole"],
-            "tickets":   ["ticket"],
-            "embed":     ["embed"],
-            "premium":   ["call", "hangup", "vcsetup", "buttonrole", "bumpreminder",
-                          "setstatus", "prefix self"],
-            "admin":     ["settings", "prefix", "welcome", "bye", "logs", "automod",
-                          "quicksetup", "jailsetup", "setupmute", "counter", "premiumrole"],
-            "levels":    ["level", "leaderboard", "setlevel", "resetxp"],
-            "owner":     ["premium", "aimode", "maintenance"],
-        }
+        # ── Category view ─────────────────────────────────────────────────────
+        if query and query.lower() in REGISTRY:
+            await self._send_category(ctx, query.lower(), pfx, user_level, is_prem)
+            return
 
-        if category and category.lower() in CATEGORY_MAP:
-            cat    = category.lower()
-            keys   = CATEGORY_MAP[cat]
-            # Filter commands available to this user
-            cmds   = [
-                (cmd, desc, perm, prem)
-                for cmd, desc, perm, prem in COMMANDS
-                if cmd.split()[0] in keys
-                and PERM_ORDER[perm] <= PERM_ORDER[user_level]
-                and (not prem or is_prem or ctx.author.id == BOT_OWNER_ID)
-            ]
-            embed = discord.Embed(
-                title=f"Help — {cat.title()}",
-                color=0x2B2D31
-            )
-            if not cmds:
-                embed.description = "No commands available for your permission level in this category."
-            else:
-                lines = []
-                for cmd, desc, perm, prem in cmds:
-                    tag = " `Premium`" if prem else ""
-                    lines.append(f"`,{cmd}` — {desc}{tag}")
-                embed.description = "\n".join(lines)
-            embed.set_footer(text=f"Prefix: , | Your level: {PERM_LABELS[user_level]}")
-            return await ctx.reply(embed=embed)
+        # ── Command search ────────────────────────────────────────────────────
+        if query:
+            await self._send_search(ctx, query.lower(), pfx, user_level, is_prem)
+            return
 
-        # ── Main help menu ────────────────────────────────────────────────────
+        # ── Main menu ─────────────────────────────────────────────────────────
+        await self._send_main(ctx, pfx, user_level, is_prem)
+
+    # ── Main menu embed ────────────────────────────────────────────────────────
+    async def _send_main(self, ctx, pfx, user_level, is_prem):
+        color = PERM_COLORS[user_level]
         embed = discord.Embed(
-            title="Happy — Help",
-            color=0x2B2D31
+            title="Happy — Command Help",
+            color=color
         )
+        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+
+        # Status line
+        prem_tag = " · **Premium**" if is_prem else ""
         embed.description = (
-            f"Your permission level: **{PERM_LABELS[user_level]}**"
-            + (" · **Premium**" if (is_prem or ctx.author.id == BOT_OWNER_ID) else "")
-            + "\n\nUse `,help <category>` for a detailed list.\n"
+            f"Your level: **{PERM_LABELS[user_level]}**{prem_tag}\n"
+            f"Prefix: `{pfx}` · Mention: {self.bot.user.mention}\n\n"
+            f"Use `{pfx}help <category>` to see commands.\n"
+            f"Use `{pfx}help <command>` to search.\n"
         )
 
-        # Show only categories relevant to the user's level
-        categories_to_show = [
-            ("fun",      "Ship, 8ball, roleplay, dice, coinflip"),
-            ("utility",  "Userinfo, avatar, ping, translate, urban"),
-            ("profile",  "Profile card, birthday, AFK"),
-            ("levels",   "XP, level, leaderboard"),
-            ("tickets",  "Support ticket system"),
-            ("embed",    "Interactive embed builder"),
-        ]
-        if PERM_ORDER[user_level] >= PERM_ORDER["mod"]:
-            categories_to_show += [
-                ("mod",   "Kick, ban, mute, warn, lock, purge, jail"),
-                ("roles", "Reaction roles, button roles, booster roles"),
+        # Show categories filtered by permission
+        shown = []
+        for cat, (label, desc) in CAT_META.items():
+            # Always show if user has enough perm for at least one command in category
+            entries = REGISTRY[cat]
+            accessible = [
+                e for e in entries
+                if PERM_ORDER[e[2]] <= PERM_ORDER[user_level]
+                and (not e[3] or is_prem)
             ]
-        if PERM_ORDER[user_level] >= PERM_ORDER["admin"]:
-            categories_to_show += [
-                ("admin", "Settings, prefix, welcome, automod, counters"),
-            ]
-        if is_prem or ctx.author.id == BOT_OWNER_ID:
-            categories_to_show += [
-                ("premium", "Call, VoiceMaster, bump reminder, custom status, personal prefix"),
-            ]
-        if user_level == "owner":
-            categories_to_show += [
-                ("owner", "Premium management, AI mode, maintenance"),
-            ]
+            if not accessible:
+                continue
+            shown.append((cat, label, desc, len(accessible)))
 
-        for cat_name, cat_desc in categories_to_show:
+        # Two-column layout using inline fields
+        for cat, label, desc, count in shown:
             embed.add_field(
-                name=f"`,help {cat_name}`",
-                value=cat_desc,
+                name=f"`{pfx}help {cat}` — {label}",
+                value=f"{desc}\n*{count} command(s)*",
+                inline=True
+            )
+
+        # Pad to even number for Discord 2-col alignment
+        if len(shown) % 2 == 1:
+            embed.add_field(name="\u200b", value="\u200b", inline=True)
+
+        # AI chat notice
+        if is_prem:
+            ai_val = f"Mention {self.bot.user.mention} or reply to chat. **Active for you.**"
+        else:
+            ai_val = f"Mention {self.bot.user.mention} — **Premium only**. Contact the bot owner."
+        embed.add_field(name="AI Chat", value=ai_val, inline=False)
+
+        embed.set_footer(text=f"Happy Premium unlocks AI chat, global call, VoiceMaster & more.")
+        await ctx.reply(embed=embed)
+
+    # ── Category embed ─────────────────────────────────────────────────────────
+    async def _send_category(self, ctx, cat, pfx, user_level, is_prem):
+        label, desc = CAT_META[cat]
+        entries     = REGISTRY[cat]
+        color       = PERM_COLORS.get(user_level, 0x2B2D31)
+
+        # Filter by permission and premium
+        visible = [
+            (syn, d, perm, prem)
+            for syn, d, perm, prem in entries
+            if PERM_ORDER[perm] <= PERM_ORDER[user_level]
+            and (not prem or is_prem)
+        ]
+
+        embed = discord.Embed(
+            title=f"Help — {label}",
+            color=color
+        )
+
+        if not visible:
+            embed.description = (
+                "No commands available for your permission level in this category.\n"
+                + ("Some commands require **Premium**." if any(e[3] for e in entries) else "")
+            )
+        else:
+            lines = []
+            for syn, d, perm, prem in visible:
+                prem_tag = " `✦ Premium`" if prem else ""
+                perm_tag = ""
+                if perm == "mod":
+                    perm_tag = " `mod`"
+                elif perm == "admin":
+                    perm_tag = " `admin`"
+                elif perm == "owner":
+                    perm_tag = " `owner`"
+                lines.append(f"`{pfx}{syn}`{prem_tag}{perm_tag}\n{d}")
+            embed.description = "\n\n".join(lines)
+
+        # Show locked commands if any hidden
+        locked = [e for e in entries if PERM_ORDER[e[2]] > PERM_ORDER[user_level] or (e[3] and not is_prem)]
+        if locked:
+            lock_lines = []
+            for syn, d, perm, prem in locked:
+                reason = "Premium" if (prem and not is_prem) else PERM_LABELS[perm]
+                lock_lines.append(f"`{pfx}{syn}` — *requires {reason}*")
+            embed.add_field(
+                name=f"Locked ({len(locked)})",
+                value="\n".join(lock_lines[:8]) + ("..." if len(lock_lines) > 8 else ""),
                 inline=False
             )
 
-        embed.add_field(
-            name="AI Chat",
-            value=(
-                "@mention Happy or reply to start a conversation. **(Premium only)**"
-                if not (is_prem or ctx.author.id == BOT_OWNER_ID)
-                else "@mention Happy or reply to chat. **Active for you.**"
-            ),
-            inline=False
+        embed.set_footer(
+            text=f"Your level: {PERM_LABELS[user_level]} · {pfx}help for full menu"
         )
-
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        embed.set_footer(text=f"Default prefix: , | Server prefix may differ | Happy Premium for extra features")
         await ctx.reply(embed=embed)
 
-    # ── Slash help ─────────────────────────────────────────────────────────────
-    @app_commands.command(name="help", description="View Happy's command list")
-    async def slash_help(self, interaction: discord.Interaction):
-        user_level = _user_level(interaction.user, interaction.guild, BOT_OWNER_ID)
-        is_prem    = await is_premium_user(interaction.user.id) or await is_premium_server(interaction.guild.id)
+    # ── Search embed ───────────────────────────────────────────────────────────
+    async def _send_search(self, ctx, query, pfx, user_level, is_prem):
+        results = [
+            (cat, syn, desc, perm, prem)
+            for cat, syn, desc, perm, prem in ALL_COMMANDS
+            if query in syn.lower() or query in desc.lower()
+        ]
 
         embed = discord.Embed(
-            title="Happy — Help",
-            description=(
-                f"Your level: **{PERM_LABELS[user_level]}**"
-                + (" · **Premium**" if (is_prem or interaction.user.id == BOT_OWNER_ID) else "")
-                + "\n\nUse `,help <category>` for a detailed list of commands.\n\n"
-                "**Categories:** `fun` `utility` `profile` `levels` `mod` `admin` `roles` `tickets` `embed` `premium`"
-            ),
-            color=0x2B2D31
+            title=f"Search — \"{query}\"",
+            color=PERM_COLORS[user_level]
         )
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        embed.set_footer(text="Default prefix: , | Slash commands also available")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        if not results:
+            embed.description = (
+                f"No commands found matching `{query}`.\n\n"
+                f"Try `{pfx}help` to browse all categories."
+            )
+            return await ctx.reply(embed=embed)
+
+        lines = []
+        for cat, syn, desc, perm, prem in results[:12]:  # cap at 12
+            accessible = (
+                PERM_ORDER[perm] <= PERM_ORDER[user_level]
+                and (not prem or is_prem)
+            )
+            if accessible:
+                prem_tag = " `✦`" if prem else ""
+                lines.append(f"`{pfx}{syn}`{prem_tag} — {desc}")
+            else:
+                reason = "Premium" if (prem and not is_prem) else PERM_LABELS[perm]
+                lines.append(f"~~`{pfx}{syn}`~~ — *requires {reason}*")
+
+        embed.description = "\n".join(lines)
+        if len(results) > 12:
+            embed.description += f"\n\n*...and {len(results)-12} more. Use `{pfx}help <category>` to browse.*"
+
+        embed.set_footer(text=f"{pfx}help <category> for full lists")
+        await ctx.reply(embed=embed)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SLASH HELP
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @app_commands.command(name="help", description="View Happy's command list")
+    @app_commands.describe(category="Browse a specific category (optional)")
+    @app_commands.choices(category=[
+        app_commands.Choice(name="Fun & Games",     value="fun"),
+        app_commands.Choice(name="Roleplay",        value="roleplay"),
+        app_commands.Choice(name="Utility",         value="utility"),
+        app_commands.Choice(name="Profile",         value="profile"),
+        app_commands.Choice(name="Levels & XP",     value="levels"),
+        app_commands.Choice(name="Moderation",      value="mod"),
+        app_commands.Choice(name="Anti-Spam",       value="antispam"),
+        app_commands.Choice(name="Roles",           value="roles"),
+        app_commands.Choice(name="Tickets",         value="tickets"),
+        app_commands.Choice(name="Server Setup",    value="setup"),
+        app_commands.Choice(name="Admin",           value="admin"),
+        app_commands.Choice(name="Premium",         value="premium"),
+    ])
+    async def slash_help(
+        self,
+        interaction: discord.Interaction,
+        category: str = None
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        user_level = _user_level(interaction.user, BOT_OWNER_ID)
+        is_prem    = (
+            interaction.user.id == BOT_OWNER_ID or
+            await is_premium_user(interaction.user.id) or
+            await is_premium_server(interaction.guild.id)
+        )
+
+        # Get prefix
+        try:
+            data = await settings_col.find_one({"_id": str(interaction.guild.id)})
+            pfx  = data.get("prefix", ",") if data else ","
+        except:
+            pfx = ","
+
+        if category and category in REGISTRY:
+            embed = discord.Embed(
+                title=f"Help — {CAT_META[category][0]}",
+                color=PERM_COLORS[user_level]
+            )
+            entries = REGISTRY[category]
+            visible = [
+                e for e in entries
+                if PERM_ORDER[e[2]] <= PERM_ORDER[user_level]
+                and (not e[3] or is_prem)
+            ]
+            if visible:
+                lines = []
+                for syn, d, perm, prem in visible:
+                    prem_tag = " `✦`" if prem else ""
+                    lines.append(f"`{pfx}{syn}`{prem_tag} — {d}")
+                embed.description = "\n".join(lines)
+            else:
+                embed.description = "No accessible commands in this category for your permission level."
+        else:
+            prem_tag = " · **Premium**" if is_prem else ""
+            embed = discord.Embed(
+                title="Happy — Help",
+                description=(
+                    f"Level: **{PERM_LABELS[user_level]}**{prem_tag}\n"
+                    f"Prefix: `{pfx}`\n\n"
+                    "Use `/help category:` to browse a specific category.\n"
+                    f"Use `{pfx}help <name>` in chat to search for a command.\n\n"
+                    "**Categories:** fun · roleplay · utility · profile · levels · "
+                    "mod · antispam · roles · tickets · setup · admin · premium"
+                ),
+                color=PERM_COLORS[user_level]
+            )
+            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+
+        embed.set_footer(text=f"Happy Premium · {pfx}help for prefix commands")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot):

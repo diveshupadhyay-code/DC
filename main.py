@@ -34,6 +34,16 @@ bot = commands.Bot(
     help_command=None,
 )
 
+# ── Suppress Bot's default on_message ────────────────────────────────────────
+# discord.py's Bot.on_message calls process_commands automatically.
+# Our Core cog's on_message ALSO calls process_commands at the end.
+# Without this override, both fire → every command runs TWICE.
+# This @bot.event replaces Bot.on_message with a no-op so that
+# Core cog's on_message is the single place process_commands is called.
+@bot.event
+async def on_message(message):
+    pass  # Core cog handles all message logic including process_commands
+
 # ── Cog list ──────────────────────────────────────────────────────────────────
 COGS = [
     "cogs.core",

@@ -101,7 +101,9 @@ class Core(commands.Cog):
             return
 
         if not message.guild:
-            return   # DMs: let Bot.on_message handle process_commands
+            # DMs: Bot.on_message is suppressed, so we must handle process_commands here
+            await self.bot.process_commands(message)
+            return
 
         # ── 1. Anti-invite ──────────────────────────────────────────────────
         gs = await settings_col.find_one({"_id": str(message.guild.id)})
@@ -211,8 +213,10 @@ class Core(commands.Cog):
         if call_cog:
             await call_cog.relay_call(message)
 
-        # NOTE: No process_commands here. Bot.on_message handles it automatically.
-        # Adding it here would cause double command execution.
+        # ── 9. Process commands ───────────────────────────────────────────────
+        # Must be called here. Bot.on_message (default) is suppressed in main.py
+        # via @bot.event so it doesn't call process_commands a second time.
+        await self.bot.process_commands(message)
 
     # ── Bump reminder helper ───────────────────────────────────────────────────
     async def _check_disboard_bump(self, message: discord.Message):

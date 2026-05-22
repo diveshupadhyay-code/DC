@@ -58,6 +58,7 @@ COGS = [
     "cogs.premium",
     "cogs.admin",
     "cogs.help",
+    "cogs.aesthetic",
 ]
 
 async def main():

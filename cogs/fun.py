@@ -277,13 +277,13 @@ class Fun(commands.Cog):
         await ctx.reply(embed=embed)
 
     # ── Coinflip ──────────────────────────────────────────────────────────────
-    @commands.command(aliases=["flip", "coin"])
-    async def coinflip(self, ctx):
-        """Flip a coin."""
-        result = random.choice(["Heads", "Tails"])
-        emoji  = "🪙" if result == "Heads" else "🎭"
-        embed  = discord.Embed(description=f"{emoji} **{result}!**", color=0x2B2D31)
-        await ctx.reply(embed=embed)
+    # @commands.command(aliases=["flip", "coin"])
+    # async def coinflip(self, ctx):
+    #     """Flip a coin."""
+    #     result = random.choice(["Heads", "Tails"])
+    #     emoji  = "🪙" if result == "Heads" else "🎭"
+    #     embed  = discord.Embed(description=f"{emoji} **{result}!**", color=0x2B2D31)
+    #     await ctx.reply(embed=embed)
 
     # ── Dice ──────────────────────────────────────────────────────────────────
     @commands.command(aliases=["roll"])
@@ -368,12 +368,12 @@ class Fun(commands.Cog):
         embed.add_field(name="Answer",   value=f"**{answer}**", inline=False)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="coinflip", description="Flip a coin")
-    async def slash_coinflip(self, interaction: discord.Interaction):
-        result = random.choice(["Heads", "Tails"])
-        await interaction.response.send_message(
-            embed=discord.Embed(description=f"🪙 **{result}!**", color=0x2B2D31)
-        )
+    # @app_commands.command(name="coinflip", description="Flip a coin")
+    # async def slash_coinflip(self, interaction: discord.Interaction):
+    #     result = random.choice(["Heads", "Tails"])
+    #     await interaction.response.send_message(
+    #         embed=discord.Embed(description=f"🪙 **{result}!**", color=0x2B2D31)
+    #     )
 
     @app_commands.command(name="dice", description="Roll a dice")
     async def slash_dice(self, interaction: discord.Interaction, sides: int = 6):

@@ -227,6 +227,144 @@ REGISTRY = {
         ("prefix selfremove",           "Remove your personal prefix",                        "everyone", False),
     ],
 
+
+    # ── GAMES ─────────────────────────────────────────────────────────────────
+    "games": [
+        ("numguess start [max]",        "Start a number guessing game (default 1-100)",      "everyone", False),
+        ("numguess stop",               "End the current number guess game",                 "mod",      False),
+        ("counting setup #channel",     "Set up the counting channel",                       "mod",      False),
+        ("counting reset",              "Reset the count back to 0",                         "mod",      False),
+        ("counting stats",              "View counting high score",                          "everyone", False),
+        ("wordguess start",             "Start a word guessing game (hangman-style)",        "everyone", False),
+        ("wordguess stop",              "End the current word guess game",                   "mod",      False),
+    ],
+
+    # ── ECONOMY ───────────────────────────────────────────────────────────────
+    "economy": [
+        ("balance [@user]",             "Check your global HC balance (wallet + bank)",      "everyone", False),
+        ("daily",                       "Claim 150-350 HC every 24 hours",                   "everyone", False),
+        ("work",                        "Earn 50-150 HC every hour (activity boosts pay)",   "everyone", False),
+        ("deposit <amount/all>",        "Move HC from wallet to bank",                       "everyone", False),
+        ("withdraw <amount/all>",       "Move HC from bank to wallet",                       "everyone", False),
+        ("transfer @user <amount>",     "Send HC to another user (global)",                  "everyone", False),
+        ("coinflip <amount> [h/t]",     "Gamble with a coinflip — 50/50",                   "everyone", False),
+        ("slots <amount>",              "Spin the slot machine — match 3 for jackpot",       "everyone", False),
+        ("rob @user",                   "Attempt to rob someone's wallet (45% success)",     "everyone", False),
+        ("richlist",                    "Top 10 richest HC holders globally",                "everyone", False),
+        ("trade offer @user <off> <want>","Send a trade offer (locks your HC)",              "everyone", False),
+        ("trade accept/decline <id>",   "Accept or decline a trade offer",                   "everyone", False),
+        ("trade cancel <id>",           "Cancel your own pending trade",                     "everyone", False),
+        ("trade list",                  "View your pending trades",                          "everyone", False),
+        ("serverstatus",                "Check server activity and work earnings multiplier","everyone", False),
+        ("givecash @user <n>",          "Give HC to a user — Bot Owner only",               "owner",    False),
+        ("takecash @user <n>",          "Remove HC from a user — Bot Owner only",           "owner",    False),
+        ("resetcash @user",             "Reset a user's balance — Bot Owner only",          "owner",    False),
+    ],
+
+    # ── INVEST ────────────────────────────────────────────────────────────────
+    "invest": [
+        ("stocks",                      "View all stocks with current prices and trends",    "everyone", False),
+        ("stock <SYMBOL>",              "Detailed stock info — price, chart, 24h high/low",  "everyone", False),
+        ("buy <SYMBOL> <qty>",          "Buy shares of a stock using HC",                   "everyone", False),
+        ("sell <SYMBOL> <qty/all>",     "Sell shares — shows profit or loss",               "everyone", False),
+        ("portfolio [@user]",           "View holdings, value, and total P&L",              "everyone", False),
+        ("investlist",                  "Top 10 investors by portfolio value",               "everyone", False),
+        ("setprice <SYMBOL> <price>",   "Manually set a stock price",                       "owner",    False),
+        ("settrend <SYMBOL> bull/bear", "Force a stock trend direction",                    "owner",    False),
+        ("addstock <SYMBOL> <price> <name>","Add a new custom stock to the market",         "owner",    False),
+    ],
+
+    # ── ECONOMY ───────────────────────────────────────────────────────────────
+    "economy": [
+        ("balance [@user]",             "Check your global HC balance (wallet + bank)",     "everyone", False),
+        ("daily",                       "Claim daily reward — 150 to 350 HC (24h cooldown)","everyone", False),
+        ("work",                        "Work for HC — boosted by server activity (1h cd)",  "everyone", False),
+        ("deposit <amount/all>",        "Move HC from wallet to bank",                       "everyone", False),
+        ("withdraw <amount/all>",       "Move HC from bank to wallet",                       "everyone", False),
+        ("transfer @user <amount>",     "Send HC to someone globally",                       "everyone", False),
+        ("coinflip <amount> [h/t]",     "Bet HC on a coin flip — alias: cf",                "everyone", False),
+        ("slots <amount>",              "Spin the slot machine — match 3 for jackpot",       "everyone", False),
+        ("rob @user",                   "Try to rob someone — 45% success, fine on fail",    "everyone", False),
+        ("richlist",                    "Top 10 richest HC holders globally",                "everyone", False),
+        ("trade offer @user <off> <want>","Send a trade offer — locks your HC instantly",   "everyone", False),
+        ("trade accept/decline <id>",   "Accept or decline a pending trade",                 "everyone", False),
+        ("trade cancel <id>",           "Cancel your own pending trade offer",               "everyone", False),
+        ("trade list",                  "See all your pending trades",                       "everyone", False),
+        ("givecash @user <amount>",     "Give HC to a user — Owner only",                   "owner",    False),
+        ("takecash @user <amount>",     "Remove HC from a user — Owner only",               "owner",    False),
+        ("resetcash @user",             "Reset a user's full balance — Owner only",          "owner",    False),
+    ],
+
+    # ── INVEST ────────────────────────────────────────────────────────────────
+    "invest": [
+        ("market",                      "View all stocks with prices and trends",            "everyone", False),
+        ("stock <SYMBOL>",              "Detailed stock info — price, chart, high/low",      "everyone", False),
+        ("buy <SYMBOL> <qty>",          "Buy shares of a stock with HC",                     "everyone", False),
+        ("sell <SYMBOL> <qty/all>",     "Sell shares — shows exact profit/loss",             "everyone", False),
+        ("portfolio [@user]",           "View holdings, value, and total P&L",               "everyone", False),
+        ("investlist",                  "Top 10 investors by portfolio value",               "everyone", False),
+        ("serverstatus",                "Server activity level and work multiplier",         "everyone", False),
+        ("setprice <SYMBOL> <price>",   "Manually set a stock price — Owner only",           "owner",    False),
+        ("settrend <SYMBOL> bull/bear", "Set a stock trend — Owner only",                   "owner",    False),
+        ("addstock <SYM> <price> <name>","Add a custom stock — Owner only",                 "owner",    False),
+    ],
+
+    # ── GAMES ─────────────────────────────────────────────────────────────────
+    "games": [
+        ("numguess start [max]",        "Start a number guessing game (default 1-100)",      "everyone", False),
+        ("numguess stop",               "End the current number guess game",                 "mod",      False),
+        ("counting setup #channel",     "Set up the counting channel",                       "mod",      False),
+        ("counting reset",              "Reset the count to 0",                              "mod",      False),
+        ("counting stats",              "View current count and high score",                 "everyone", False),
+        ("wordguess start",             "Start a word guessing game (Hangman-style)",        "everyone", False),
+        ("wordguess stop",              "End the current word guess game",                   "mod",      False),
+    ],
+
+    # ── ECONOMY ───────────────────────────────────────────────────────────────
+    "economy": [
+        ("balance [@user]",          "View global wallet + bank balance",                "everyone", False),
+        ("daily",                    "Claim daily reward (150–350 HC, resets 24h)",     "everyone", False),
+        ("work",                     "Work for HC — boosted by server activity",         "everyone", False),
+        ("deposit <amount/all>",     "Move HC from wallet to bank",                     "everyone", False),
+        ("withdraw <amount/all>",    "Move HC from bank to wallet",                     "everyone", False),
+        ("transfer @user <amount>",  "Send HC to another user (global)",                "everyone", False),
+        ("coinflip <amount> [h/t]",  "Gamble with a coinflip — 50/50",                 "everyone", False),
+        ("slots <amount>",           "Spin the slot machine — match 3 for jackpot",     "everyone", False),
+        ("rob @user",                "Try to rob someone — 45% success rate",           "everyone", False),
+        ("richlist",                 "Top 10 richest HC holders globally",              "everyone", False),
+        ("serverstatus",             "Server activity level and work multiplier",        "everyone", False),
+        ("trade offer @user <o> <w>","Send a trade offer (offer HC, want HC)",         "everyone", False),
+        ("trade accept/decline <id>","Accept or decline a trade",                       "everyone", False),
+        ("trade cancel <id>",        "Cancel your own pending trade",                   "everyone", False),
+        ("trade list",               "See all your pending trades",                     "everyone", False),
+        ("givecash @user <n>",       "Give HC to a user — Bot Owner only",             "owner",    False),
+        ("takecash @user <n>",       "Remove HC from a user — Bot Owner only",         "owner",    False),
+        ("resetcash @user",          "Reset a user balance — Bot Owner only",          "owner",    False),
+    ],
+
+    # ── INVEST ────────────────────────────────────────────────────────────────
+    "invest": [
+        ("market",                   "View all stocks with live prices and trends",     "everyone", False),
+        ("stock <SYMBOL>",           "Detailed stock info + mini price chart",          "everyone", False),
+        ("buy <SYMBOL> <qty>",       "Buy shares of a stock using HC",                 "everyone", False),
+        ("sell <SYMBOL> <qty/all>",  "Sell shares and see profit/loss",                "everyone", False),
+        ("portfolio [@user]",        "Your holdings, current value, total P&L",        "everyone", False),
+        ("investlist",               "Top 10 investors by portfolio value",            "everyone", False),
+        ("setprice <SYM> <price>",   "Manually set a stock price — Owner only",        "owner",    False),
+        ("settrend <SYM> bull/bear",  "Set a stock trend — Owner only",                "owner",    False),
+        ("addstock <SYM> <p> <name>","Add a new stock to the market — Owner only",    "owner",    False),
+    ],
+
+    # ── GAMES ─────────────────────────────────────────────────────────────────
+    "games": [
+        ("numguess start [max]",     "Start a number guessing game",                   "everyone", False),
+        ("numguess stop",            "End the current number guess game",              "mod",      False),
+        ("counting setup #channel",  "Set up the counting channel",                    "mod",      False),
+        ("counting stats",           "View counting high score",                        "everyone", False),
+        ("counting reset",           "Reset the count to 0",                           "mod",      False),
+        ("wordguess start",          "Start a word guessing game (Hangman-style)",     "everyone", False),
+        ("wordguess stop",           "End the current word guess game",                "mod",      False),
+    ],
     # ── OWNER ─────────────────────────────────────────────────────────────────
     "owner": [
         ("premium add server <id>",     "Activate premium for a server",                "owner", False),
@@ -264,6 +402,9 @@ CAT_META = {
     "setup":    ("Server Setup","Welcome, bye, logs, automod, counters, quicksetup"),
     "admin":    ("Admin",       "Settings, prefix, announcements, giveaways, embeds"),
     "premium":  ("Premium",     "Global call, VoiceMaster, bump reminder, custom status"),
+    "economy":  ("Economy",     "Balance, daily, work, slots, rob, trade, richlist"),
+    "invest":   ("Invest",      "Stock market, buy/sell, portfolio, P&L tracking"),
+    "games":    ("Games",       "Number guess, counting channel, word guess (Hangman)"),
     "owner":    ("Owner",       "Premium management, AI toggle, server tools"),
 }
 

@@ -61,6 +61,7 @@ COGS = [
     "cogs.aesthetic",
     "cogs.games",
     "cogs.economy",
+    "cogs.invest",
 ]
 
 async def main():

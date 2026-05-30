@@ -10,7 +10,7 @@ from datetime import datetime as dt, timezone, timedelta
 
 from utils.db import (
     settings_col, afk_col, sticky_col, bump_col,
-    levels_col, server_status_col
+    levels_col, server_status_col, global_status_col
 )
 from utils.helpers import (
     BOT_OWNER_ID, log_event, get_server_data,
@@ -50,21 +50,74 @@ class Core(commands.Cog):
             print(f"  Sync error: {e}\n")
 
     # ── Status loop ────────────────────────────────────────────────────────────
+    # HOW IT WORKS:
+    # Discord only supports ONE global bot presence. So:
+    # - Owner status   → overrides everything globally, optional 24h expiry
+    # - Server status  → rotates into the pool, shown as "[ServerName] text"
+    #                    so users know which server's status it is
+    # - Default status → shown when no overrides exist
+    # Priority: owner override > server statuses + defaults (mixed rotation)
+
     @tasks.loop(seconds=20)
     async def status_loop(self):
         await self.bot.wait_until_ready()
-        customs = await server_status_col.find({}).to_list(50)
-        if customs:
-            text = random.choice(customs).get("status", "Happy Premium")
-        else:
-            text = random.choice([
-                f"over {len(self.bot.guilds)} servers",
-                f"{len(self.bot.users)} members",
-                "Type ,help",
-                "Happy Premium",
-            ])
+        from utils.db import global_status_col, server_status_col
+        from datetime import datetime, timezone
+
+        # ── 1. Owner global override (highest priority) ───────────────────────
+        gov = await global_status_col.find_one({"type": "owner"})
+        if gov:
+            # Auto-expire 24h statuses
+            if gov.get("expires_at"):
+                expires = gov["expires_at"]
+                if expires.tzinfo is None:
+                    expires = expires.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expires:
+                    await global_status_col.delete_one({"type": "owner"})
+                    gov = None
+
+        if gov:
+            atype = getattr(discord.ActivityType,
+                            gov.get("activity", "watching"),
+                            discord.ActivityType.watching)
+            await self.bot.change_presence(
+                activity=discord.Activity(type=atype, name=gov["status"])
+            )
+            return
+
+        # ── 2. Build rotation pool ─────────────────────────────────────────────
+        pool = []
+
+        # Server statuses — only include if bot is still in that server
+        server_docs = await server_status_col.find({}).to_list(50)
+        for doc in server_docs:
+            gid = doc.get("guild_id")
+            if gid and not self.bot.get_guild(int(gid)):
+                # Bot no longer in that server — skip silently
+                continue
+            guild_name = doc.get("guild_name", "")
+            text       = doc.get("status", "")
+            # Format: "[GuildName] status text" — capped at 128 chars
+            label = f"[{guild_name}] {text}"[:128] if guild_name else text[:128]
+            pool.append(label)
+
+        # Default statuses (always in pool)
+        defaults = [
+            f"over {len(self.bot.guilds)} servers",
+            f"{len(self.bot.users)} members",
+            ",help · Happy Bot",
+            "Happy Premium",
+        ]
+        pool.extend(defaults)
+
+        if not pool:
+            return
+
+        text = random.choice(pool)
         await self.bot.change_presence(
-            activity=discord.Activity(type=discord.ActivityType.watching, name=text)
+            activity=discord.Activity(
+                type=discord.ActivityType.watching, name=text
+            )
         )
 
     # ── Birthday loop ──────────────────────────────────────────────────────────
@@ -189,19 +242,21 @@ class Core(commands.Cog):
                     {"channel_id": cid}, {"$set": {"message_id": new_s.id}}
                 )
 
-        # ── 5. XP ────────────────────────────────────────────────────────────
-        await self._award_xp(message)
+        # ── 5. XP (respect server toggle) ───────────────────────────────────
+        if not gs or gs.get("levels_enabled", True):
+            await self._award_xp(message)
 
-        # ── 6. Heart reaction on greetings ───────────────────────────────────
-        greetings = {"good morning","gm","good night","gn","happy birthday",
-                     "hbd","hello","hi","welcome"}
-        words = set(message.content.lower().split())
-        if words & greetings:
-            try:
-                await asyncio.sleep(random.uniform(0.2, 0.8))
-                await message.add_reaction("💖")
-            except:
-                pass
+        # ── 6. Heart reaction on greetings (respect server toggle) ───────────
+        if not gs or gs.get("reactions_enabled", True):
+            greetings = {"good morning","gm","good night","gn","happy birthday",
+                         "hbd","hello","hi","welcome"}
+            words = set(message.content.lower().split())
+            if words & greetings:
+                try:
+                    await asyncio.sleep(random.uniform(0.2, 0.8))
+                    await message.add_reaction("💖")
+                except:
+                    pass
 
         # ── 7. AI chat (delegated to ai_chat cog) ───────────────────────────
         ai_cog = self.bot.get_cog("AIChat")

@@ -244,40 +244,104 @@ class Premium(commands.Cog):
     #  CUSTOM BOT STATUS
     # ══════════════════════════════════════════════════════════════════════════
 
-    @commands.command()
+    @commands.group(invoke_without_command=True)
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def setstatus(self, ctx, *, status: str = None):
         """
-        Add a custom text to the bot's rotating status pool.
-        Your server's status text will appear alongside others.
-        Leave blank to remove.
+        Set a custom status for this server.
+        It will show in the bot's rotation as "[YourServer] your text".
+        Only server admins can use this (Premium servers only).
+
+        Usage:
+          ,setstatus <text>    — set status
+          ,setstatus remove    — remove your server's status
+          ,setstatus view      — see current status
         """
         if not status:
-            await server_status_col.delete_one({"guild_id": str(ctx.guild.id)})
-            embed = discord.Embed(
-                description="Custom bot status removed from the rotation.",
-                color=0x2B2D31
-            )
+            # Show current status
+            doc = await server_status_col.find_one({"guild_id": str(ctx.guild.id)})
+            if doc:
+                embed = discord.Embed(
+                    title="Server Status",
+                    description=(
+                        f"Current: **{doc['status']}**\n"
+                        f"Shows as: `[{ctx.guild.name}] {doc['status']}`\n\n"
+                        "Use `,setstatus remove` to remove it.\n"
+                        "Use `,setstatus <text>` to change it."
+                    ),
+                    color=GOLD
+                )
+            else:
+                embed = discord.Embed(
+                    description="No custom status set.\nUse `,setstatus <text>` to set one.",
+                    color=0x2B2D31
+                )
             return await ctx.reply(embed=embed)
+
+        if status.lower() == "remove":
+            await server_status_col.delete_one({"guild_id": str(ctx.guild.id)})
+            return await ctx.reply(embed=discord.Embed(
+                description="Server status removed.",
+                color=0x2B2D31
+            ))
 
         if len(status) > 100:
             return await ctx.reply("Status text must be 100 characters or fewer.")
 
         await server_status_col.update_one(
             {"guild_id": str(ctx.guild.id)},
-            {"$set": {"status": status, "guild_name": ctx.guild.name}},
+            {"$set": {
+                "status":     status,
+                "guild_name": ctx.guild.name,
+                "guild_id":   str(ctx.guild.id),
+                "set_by":     str(ctx.author.id),
+            }},
             upsert=True
         )
         embed = discord.Embed(
-            title="Custom Status Set",
+            title="Server Status Set",
             description=(
-                f"The bot will now rotate: **Watching {status}**\n\n"
-                "Your text joins the global rotation pool across all premium servers."
+                f"Status saved!\n\n"
+                f"Shows in rotation as:\n"
+                f"> Watching **[{ctx.guild.name}] {status}**\n\n"
+                "Only visible when the bot rotates to your server's turn.\n"
+                "Other servers have their own separate statuses."
             ),
             color=GOLD
         )
-        embed.set_footer(text="Use ,setstatus again to change, or blank to remove")
+        embed.set_footer(text=",setstatus remove to clear · ,setstatus to view current")
+        await ctx.reply(embed=embed)
+
+    @setstatus.command(name="remove")
+    @ctx_premium()
+    @commands.has_permissions(administrator=True)
+    async def setstatus_remove(self, ctx):
+        """Remove this server's custom status."""
+        result = await server_status_col.delete_one({"guild_id": str(ctx.guild.id)})
+        if result.deleted_count:
+            await ctx.reply(embed=discord.Embed(
+                description="Server status removed.", color=0x2B2D31
+            ))
+        else:
+            await ctx.reply("No custom status was set for this server.")
+
+    @setstatus.command(name="view")
+    @commands.has_permissions(administrator=True)
+    async def setstatus_view(self, ctx):
+        """View this server's current custom status."""
+        doc = await server_status_col.find_one({"guild_id": str(ctx.guild.id)})
+        if doc:
+            embed = discord.Embed(
+                title="Server Status",
+                description=(
+                    f"Text: **{doc['status']}**\n"
+                    f"Shown as: `[{ctx.guild.name}] {doc['status']}`"
+                ),
+                color=GOLD
+            )
+        else:
+            embed = discord.Embed(description="No custom status set.", color=0x2B2D31)
         await ctx.reply(embed=embed)
 
     # ══════════════════════════════════════════════════════════════════════════

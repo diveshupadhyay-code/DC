@@ -95,6 +95,14 @@ class Admin(commands.Cog):
             inline=True
         )
         embed.add_field(
+            name="Features",
+            value=(
+                f"Level-up msgs: {_on('levels_enabled') if 'levels_enabled' in gs else 'On'}\n"
+                f"Auto reactions: {_on('reactions_enabled') if 'reactions_enabled' in gs else 'On'}"
+            ),
+            inline=True
+        )
+        embed.add_field(
             name="Tickets",
             value=f"Total opened: {ticket_cfg.get('ticket_count', 0)}\nStaff role: {'Set' if ticket_cfg.get('staff_role_id') else 'Not set'}",
             inline=True
@@ -634,29 +642,229 @@ class Admin(commands.Cog):
         ))
 
     @commands.command()
+    @commands.has_permissions(manage_guild=True)
+    async def togglelevels(self, ctx, status: str = None):
+        """
+        Enable or disable level-up messages for this server.
+        XP is still earned silently — only the level-up announcement is controlled.
+        Usage: ,togglelevels on/off
+        """
+        gs = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        current = gs.get("levels_enabled", True)
+
+        if not status:
+            state = "ON" if current else "OFF"
+            return await ctx.reply(embed=discord.Embed(
+                description=(
+                    f"Level-up messages are currently **{state}**.\nUse `,togglelevels on` or `,togglelevels off` to change."
+                ),
+                color=0x2B2D31
+            ))
+
+        new_state = status.lower() in ("on", "true", "1", "yes")
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$set": {"levels_enabled": new_state}},
+            upsert=True
+        )
+        state = "ON" if new_state else "OFF"
+        await ctx.reply(embed=discord.Embed(
+            description=f"Level-up messages turned **{state}** for this server.",
+            color=0x2B2D31
+        ))
+
+    @commands.command()
+    @commands.has_permissions(manage_guild=True)
+    async def togglereactions(self, ctx, status: str = None):
+        """
+        Enable or disable Happy's automatic heart reactions to greetings.
+        Usage: ,togglereactions on/off
+        """
+        gs = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        current = gs.get("reactions_enabled", True)
+
+        if not status:
+            state = "ON" if current else "OFF"
+            return await ctx.reply(embed=discord.Embed(
+                description=(
+                    f"Auto reactions are currently **{state}**.\nUse `,togglereactions on` or `,togglereactions off` to change."
+                ),
+                color=0x2B2D31
+            ))
+
+        new_state = status.lower() in ("on", "true", "1", "yes")
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$set": {"reactions_enabled": new_state}},
+            upsert=True
+        )
+        state = "ON" if new_state else "OFF"
+        await ctx.reply(embed=discord.Embed(
+            description=f"Auto reactions turned **{state}** for this server.",
+            color=0x2B2D31
+        ))
+
+    @commands.group(invoke_without_command=True)
     @ctx_owner()
-    async def botstatus(self, ctx, activity: str = None, *, text: str = None):
+    async def botstatus(self, ctx):
         """
-        Manually override bot status (owner only).
-        Usage: `,botstatus watching Servers`
-        Types: watching, playing, listening, competing
-        Use `,botstatus reset` to return to the rotating loop.
+        Owner global status controls.
+        Sub-commands: set, set24h, reset, view, removeserver
         """
-        if not activity or activity.lower() == "reset":
-            return await ctx.reply("Bot status reset to rotating loop.")
-        types = {
-            "watching":  discord.ActivityType.watching,
-            "playing":   discord.ActivityType.playing,
-            "listening": discord.ActivityType.listening,
-            "competing": discord.ActivityType.competing,
-        }
+        from utils.db import global_status_col, server_status_col
+        gov  = await global_status_col.find_one({"type": "owner"})
+        docs = await server_status_col.find({}).to_list(50)
+
+        embed = discord.Embed(title="Bot Status — Owner Panel", color=0xffd700)
+
+        if gov:
+            expires = gov.get("expires_at")
+            exp_str = f"<t:{int(expires.timestamp())}:R>" if expires else "Never (always-on)"
+            embed.add_field(
+                name="Owner Override (ACTIVE)",
+                value=f"**{gov.get('activity','watching').title()}** `{gov['status']}`\nExpires: {exp_str}",
+                inline=False
+            )
+        else:
+            embed.add_field(name="Owner Override", value="Not set — rotation active", inline=False)
+
+        if docs:
+            lines = [f"`{d.get('guild_name','?')}` — {d['status']}" for d in docs[:10]]
+            embed.add_field(name=f"Server Statuses ({len(docs)})", value="\n".join(lines), inline=False)
+        else:
+            embed.add_field(name="Server Statuses", value="None set", inline=False)
+
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`,botstatus set <activity> <text>` — set always-on override\n"
+                "`,botstatus set24h <activity> <text>` — set 24h override\n"
+                "`,botstatus reset` — remove owner override\n"
+                "`,botstatus view` — this panel\n"
+                "`,botstatus removeserver <guild_id>` — remove a server's status"
+            ),
+            inline=False
+        )
+        await ctx.reply(embed=embed)
+
+    @botstatus.command(name="set")
+    @ctx_owner()
+    async def botstatus_set(self, ctx, activity: str = None, *, text: str = None):
+        """
+        Set a permanent global owner status override.
+        Usage: ,botstatus set watching Happy Users
+        Activity types: watching playing listening competing
+        """
+        if not activity or not text:
+            return await ctx.reply("Usage: `,botstatus set <watching/playing/listening/competing> <text>`")
+        types = {"watching": "watching", "playing": "playing",
+                 "listening": "listening", "competing": "competing"}
         atype = types.get(activity.lower())
         if not atype:
-            return await ctx.reply("Types: watching, playing, listening, competing")
-        if not text:
-            return await ctx.reply(f"Usage: `,botstatus {activity} <text>`")
-        await self.bot.change_presence(activity=discord.Activity(type=atype, name=text))
-        await ctx.reply(f"Status: **{activity}** `{text}`.")
+            return await ctx.reply("Activity must be: watching, playing, listening, competing")
+
+        from utils.db import global_status_col
+        await global_status_col.update_one(
+            {"type": "owner"},
+            {"$set": {"type": "owner", "status": text, "activity": atype, "expires_at": None}},
+            upsert=True
+        )
+        await self.bot.change_presence(
+            activity=discord.Activity(
+                type=getattr(discord.ActivityType, atype),
+                name=text
+            )
+        )
+        embed = discord.Embed(
+            title="Owner Status Set (Always-On)",
+            description=f"**{activity.title()}** `{text}`\n\nThis overrides all server statuses globally.",
+            color=0xffd700
+        )
+        embed.set_footer(text=",botstatus reset to remove")
+        await ctx.reply(embed=embed)
+
+    @botstatus.command(name="set24h")
+    @ctx_owner()
+    async def botstatus_set24h(self, ctx, activity: str = None, *, text: str = None):
+        """
+        Set a 24-hour global owner status override.
+        Automatically removed after 24 hours.
+        """
+        if not activity or not text:
+            return await ctx.reply("Usage: `,botstatus set24h <activity> <text>`")
+        types = {"watching": "watching", "playing": "playing",
+                 "listening": "listening", "competing": "competing"}
+        atype = types.get(activity.lower())
+        if not atype:
+            return await ctx.reply("Activity must be: watching, playing, listening, competing")
+
+        from utils.db import global_status_col
+        from datetime import datetime, timezone, timedelta
+        expires = datetime.now(timezone.utc) + timedelta(hours=24)
+        await global_status_col.update_one(
+            {"type": "owner"},
+            {"$set": {"type": "owner", "status": text, "activity": atype, "expires_at": expires}},
+            upsert=True
+        )
+        await self.bot.change_presence(
+            activity=discord.Activity(
+                type=getattr(discord.ActivityType, atype),
+                name=text
+            )
+        )
+        embed = discord.Embed(
+            title="Owner Status Set (24 Hours)",
+            description=(
+                f"**{activity.title()}** `{text}`\n\n"
+                f"Expires: <t:{int(expires.timestamp())}:R>\n"
+                "After expiry, rotation resumes automatically."
+            ),
+            color=0xffd700
+        )
+        await ctx.reply(embed=embed)
+
+    @botstatus.command(name="reset")
+    @ctx_owner()
+    async def botstatus_reset(self, ctx):
+        """Remove owner status override — returns to normal rotation."""
+        from utils.db import global_status_col
+        result = await global_status_col.delete_one({"type": "owner"})
+        if result.deleted_count:
+            await ctx.reply(embed=discord.Embed(
+                description="Owner status override removed. Rotation resumed.",
+                color=0x2B2D31
+            ))
+        else:
+            await ctx.reply("No owner override was active.")
+
+    @botstatus.command(name="view")
+    @ctx_owner()
+    async def botstatus_view(self, ctx):
+        """View current owner override and all server statuses."""
+        await ctx.invoke(self.botstatus)
+
+    @botstatus.command(name="removeserver")
+    @ctx_owner()
+    async def botstatus_removeserver(self, ctx, guild_id: str = None):
+        """
+        Remove a server's custom status (owner moderation).
+        Usage: ,botstatus removeserver <guild_id>
+        """
+        if not guild_id:
+            return await ctx.reply("Usage: `,botstatus removeserver <guild_id>`")
+        from utils.db import server_status_col
+        doc    = await server_status_col.find_one({"guild_id": guild_id})
+        if not doc:
+            return await ctx.reply(f"No status found for guild `{guild_id}`.")
+        gname  = doc.get("guild_name", guild_id)
+        status = doc.get("status", "?")
+        await server_status_col.delete_one({"guild_id": guild_id})
+        embed = discord.Embed(
+            description=f"Removed status for **{gname}**:\n`{status}`",
+            color=0x2B2D31
+        )
+        embed.set_footer(text="The server will need to set a new status with ,setstatus")
+        await ctx.reply(embed=embed)
 
     @commands.command(aliases=["guildlist"])
     @ctx_owner()

@@ -51,3 +51,4 @@ trades_col         = db["trades"]
 activity_col       = db["server_activity"]
 market_col         = db["market_stocks"]
 portfolio_col      = db["portfolios"]
+global_status_col  = db["global_status"]   # owner global status overrides

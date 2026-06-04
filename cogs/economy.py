@@ -702,3 +702,197 @@ class Economy(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  INVEST SYSTEM
+    # ══════════════════════════════════════════════════════════════════════════
+
+    INVESTMENTS = {
+        "safe":     {"name": "Safe Bond",    "emoji": "🏦", "min_r": 0.05, "max_r": 0.12, "risk": 0.03, "loss": 0.05, "hours": 4,  "desc": "5-12% return · 3% loss chance · 4h"},
+        "market":   {"name": "Stock Market", "emoji": "📈", "min_r": 0.10, "max_r": 0.35, "risk": 0.25, "loss": 0.20, "hours": 8,  "desc": "10-35% return · 25% loss chance · 8h"},
+        "crypto":   {"name": "Crypto",       "emoji": "₿",  "min_r": 0.20, "max_r": 0.80, "risk": 0.45, "loss": 0.50, "hours": 12, "desc": "20-80% return · 45% crash chance · 12h"},
+        "business": {"name": "Business",     "emoji": "🏢", "min_r": 0.15, "max_r": 0.50, "risk": 0.30, "loss": 0.30, "hours": 24, "desc": "15-50% return · 30% loss chance · 24h"},
+    }
+
+    @commands.group(invoke_without_command=True)
+    async def invest(self, ctx):
+        """Invest your HC and earn returns over time."""
+        embed = discord.Embed(title="Investment Options", color=0xF0C040)
+        for key, inv in self.INVESTMENTS.items():
+            embed.add_field(
+                name=f"{inv['emoji']} {inv['name']}",
+                value=f"{inv['desc']}\n`,invest in {key} <amount>`",
+                inline=True
+            )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`,invest in <type> <amount>` — start investing\n"
+                "`,invest check` — see your active investment\n"
+                "`,invest collect` — collect matured returns\n"
+                "`,invest withdraw` — exit early (10% penalty)"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="HC is locked during investment · Cannot invest twice at same time")
+        await ctx.reply(embed=embed)
+
+    @invest.command(name="in")
+    async def invest_in(self, ctx, inv_type: str = None, amount: str = None):
+        """Start an investment. ,invest in <safe/market/crypto/business> <amount>"""
+        if not inv_type or inv_type.lower() not in self.INVESTMENTS:
+            return await ctx.reply("Types: `safe` `market` `crypto` `business`\nUsage: `,invest in <type> <amount>`")
+        if not amount:
+            return await ctx.reply("Specify an amount. Example: `,invest in market 1000`")
+
+        acc = await get_account(ctx.author.id)
+        amt = acc["wallet"] if amount.lower() == "all" else (int(amount.replace(",","")) if amount.replace(",","").isdigit() else None)
+        if amt is None:
+            return await ctx.reply("Invalid amount.")
+        if amt < 100:
+            return await ctx.reply("Minimum investment is **100 HC**.")
+        if amt > acc["wallet"]:
+            return await ctx.reply(f"Not enough. Wallet: **{acc['wallet']:,} HC**.")
+
+        inv_col  = db["investments"]
+        existing = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        if existing:
+            mat = existing["maturity"]
+            if mat.tzinfo is None:
+                mat = mat.replace(tzinfo=timezone.utc)
+            left = int((mat - datetime.now(timezone.utc)).total_seconds())
+            if left > 0:
+                inv_info = self.INVESTMENTS.get(existing["type"], {})
+                return await ctx.reply(embed=discord.Embed(
+                    description=(
+                        f"Already investing in **{inv_info.get('name', existing['type'])}** ({existing['amount']:,} HC).\n"
+                        f"Matures in **{_fmt_cd(left)}**.\n"
+                        f"Use `,invest collect` when ready."
+                    ),
+                    color=0xFEE75C
+                ))
+
+        inv      = self.INVESTMENTS[inv_type.lower()]
+        maturity = datetime.now(timezone.utc) + timedelta(hours=inv["hours"])
+        await add_wallet(ctx.author.id, -amt)
+        await inv_col.update_one(
+            {"user_id": str(ctx.author.id)},
+            {"$set": {
+                "user_id":  str(ctx.author.id),
+                "type":     inv_type.lower(),
+                "amount":   amt,
+                "maturity": maturity,
+                "status":   "active",
+            }},
+            upsert=True
+        )
+        embed = discord.Embed(
+            title=f"{inv['emoji']} Invested in {inv['name']}",
+            description=(
+                f"Amount locked: **{amt:,} HC**\n"
+                f"Potential: +{int(inv['min_r']*100)}% to +{int(inv['max_r']*100)}%\n"
+                f"Risk: {int(inv['risk']*100)}% chance of loss\n"
+                f"Matures: <t:{int(maturity.timestamp())}:R>"
+            ),
+            color=0xF0C040
+        )
+        embed.set_footer(text=",invest collect when mature · ,invest withdraw to exit early (10% fee)")
+        await ctx.reply(embed=embed)
+
+    @invest.command(name="check")
+    async def invest_check(self, ctx):
+        """Check your current investment."""
+        inv_col = db["investments"]
+        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        if not doc:
+            return await ctx.reply("No active investment. Use `,invest` to see options.")
+
+        mat = doc["maturity"]
+        if mat.tzinfo is None:
+            mat = mat.replace(tzinfo=timezone.utc)
+        left = int((mat - datetime.now(timezone.utc)).total_seconds())
+
+        if left <= 0:
+            await ctx.reply("Your investment has matured! Use `,invest collect` to claim it.")
+            return
+
+        inv     = self.INVESTMENTS.get(doc["type"], {})
+        min_ret = int(doc["amount"] * inv.get("min_r", 0))
+        max_ret = int(doc["amount"] * inv.get("max_r", 0))
+        embed   = discord.Embed(title=f"{inv.get('emoji','')} {inv.get('name','Investment')}", color=0xF0C040)
+        embed.add_field(name="Invested",        value=f"{doc['amount']:,} HC",             inline=True)
+        embed.add_field(name="Expected Return", value=f"+{min_ret:,} to +{max_ret:,} HC",  inline=True)
+        embed.add_field(name="Matures",         value=f"<t:{int(mat.timestamp())}:R>",     inline=True)
+        embed.set_footer(text=",invest collect when mature · ,invest withdraw to exit early (10% penalty)")
+        await ctx.reply(embed=embed)
+
+    @invest.command(name="collect")
+    async def invest_collect(self, ctx):
+        """Collect your matured investment."""
+        inv_col = db["investments"]
+        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        if not doc:
+            return await ctx.reply("No active investment to collect.")
+
+        mat = doc["maturity"]
+        if mat.tzinfo is None:
+            mat = mat.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) < mat:
+            left = int((mat - datetime.now(timezone.utc)).total_seconds())
+            return await ctx.reply(embed=discord.Embed(
+                description=f"Not matured yet. Come back in **{_fmt_cd(left)}**.",
+                color=0xED4245
+            ))
+
+        inv    = self.INVESTMENTS.get(doc["type"], {})
+        amount = doc["amount"]
+
+        if random.random() < inv.get("risk", 0):
+            # Loss
+            loss_pct = inv.get("loss", 0.2)
+            loss_amt = int(amount * loss_pct)
+            payout   = amount - loss_amt
+            await add_wallet(ctx.author.id, payout)
+            await inv_col.update_one({"user_id": str(ctx.author.id)}, {"$set": {"status": "done"}})
+            embed = discord.Embed(
+                title=f"{inv.get('emoji','')} Investment Loss",
+                description=f"Market went against you.\nLost **{loss_amt:,} HC** ({int(loss_pct*100)}%)\nRecovered **{payout:,} HC**.",
+                color=0xED4245
+            )
+        else:
+            # Profit
+            ret_pct = random.uniform(inv.get("min_r", 0.05), inv.get("max_r", 0.12))
+            profit  = int(amount * ret_pct)
+            payout  = amount + profit
+            await add_wallet(ctx.author.id, payout)
+            await inv_col.update_one({"user_id": str(ctx.author.id)}, {"$set": {"status": "done"}})
+            embed = discord.Embed(
+                title=f"{inv.get('emoji','')} Investment Profit!",
+                description=f"Invested: **{amount:,} HC**\nProfit: **+{profit:,} HC** (+{int(ret_pct*100)}%)\nTotal: **{payout:,} HC**",
+                color=0x57F287
+            )
+        embed.set_footer(text="Use ,invest to start a new investment")
+        await ctx.reply(embed=embed)
+
+    @invest.command(name="withdraw")
+    async def invest_withdraw(self, ctx):
+        """Exit your investment early. 10% penalty applies."""
+        inv_col = db["investments"]
+        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        if not doc:
+            return await ctx.reply("No active investment.")
+
+        penalty = int(doc["amount"] * 0.10)
+        payout  = doc["amount"] - penalty
+        await add_wallet(ctx.author.id, payout)
+        await inv_col.update_one({"user_id": str(ctx.author.id)}, {"$set": {"status": "withdrawn"}})
+        await ctx.reply(embed=discord.Embed(
+            title="Early Withdrawal",
+            description=f"Penalty (10%): **-{penalty:,} HC**\nReturned to wallet: **{payout:,} HC**",
+            color=0xFEE75C
+        ))
+
+
+async def setup(bot):
+    await bot.add_cog(Economy(bot))

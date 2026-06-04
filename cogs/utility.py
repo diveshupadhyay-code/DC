@@ -303,6 +303,50 @@ class Utility(commands.Cog):
             color=0x2B2D31
         ))
 
+    @birthday.command(name="channel")
+    @commands.has_permissions(manage_guild=True)
+    async def birthday_channel(self, ctx, channel: discord.TextChannel = None):
+        """
+        Set the channel where birthday wishes are announced.
+        Leave blank to view current. Use 'remove' to clear.
+        """
+        if channel is None:
+            gs  = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+            cid = gs.get("birthday_channel")
+            if cid:
+                ch = ctx.guild.get_channel(int(cid))
+                return await ctx.reply(embed=discord.Embed(
+                    description=(f"Birthday announcements go to {ch.mention if ch else f'<#{cid}>'}."
+                                 "\nUse `,birthday channel remove` to clear."),
+                    color=0x2B2D31
+                ))
+            else:
+                return await ctx.reply(embed=discord.Embed(
+                    description=("No birthday channel set. Birthdays go to the welcome channel or system channel by default.\nUse `,birthday channel #channel` to set one."),
+                    color=0x2B2D31
+                ))
+
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$set": {"birthday_channel": str(channel.id)}},
+            upsert=True
+        )
+        await ctx.reply(embed=discord.Embed(
+            description=f"Birthday announcements will now go to {channel.mention}.",
+            color=0x2B2D31
+        ))
+
+    @birthday.command(name="channelremove", aliases=["removechannel"])
+    @commands.has_permissions(manage_guild=True)
+    async def birthday_channel_remove(self, ctx):
+        """Remove the dedicated birthday channel."""
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$unset": {"birthday_channel": ""}},
+            upsert=True
+        )
+        await ctx.reply("Birthday channel removed. Will fall back to welcome/system channel.")
+
     @birthday.command(name="set")
     async def birthday_set(self, ctx, date: str = None):
         """Set your birthday in DD/MM format."""

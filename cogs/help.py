@@ -263,7 +263,7 @@ REGISTRY = {
 
     # ── INVEST ────────────────────────────────────────────────────────────────
     "invest": [
-        ("stocks",                      "View all stocks with current prices and trends",    "everyone", False),
+        ("market",                      "View all stocks with current prices and trends",    "everyone", False),
         ("stock <SYMBOL>",              "Detailed stock info — price, chart, 24h high/low",  "everyone", False),
         ("buy <SYMBOL> <qty>",          "Buy shares of a stock using HC",                   "everyone", False),
         ("sell <SYMBOL> <qty/all>",     "Sell shares — shows profit or loss",               "everyone", False),

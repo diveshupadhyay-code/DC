@@ -133,14 +133,20 @@ class Core(commands.Cog):
             member = guild.get_member(int(doc["user_id"]))
             if not member:
                 continue
-            gs = await settings_col.find_one({"_id": str(guild.id)})
-            cid = gs.get("welcome_channel") if gs else None
-            ch  = self.bot.get_channel(cid) if cid else guild.system_channel
+            gs  = await settings_col.find_one({"_id": str(guild.id)})
+            # Priority: dedicated birthday channel > welcome channel > system channel
+            cid = (gs.get("birthday_channel")
+                   or gs.get("welcome_channel")) if gs else None
+            ch  = self.bot.get_channel(int(cid)) if cid else guild.system_channel
             if ch:
-                await ch.send(embed=discord.Embed(
-                    description=f"Happy Birthday, {member.mention}! Hope you have a wonderful day.",
-                    color=0x2B2D31
-                ))
+                embed = discord.Embed(
+                    title="Happy Birthday!",
+                    description=f"Today is {member.mention}'s birthday! Wish them a great day!",
+                    color=0xF0C040
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(text=f"Use ,birthday set DD/MM to register your birthday")
+                await ch.send(embed=embed)
 
     # ── Global message handler ─────────────────────────────────────────────────
     # NOTE: This Cog listener handles SIDE EFFECTS only (AFK, sticky, XP, etc.)

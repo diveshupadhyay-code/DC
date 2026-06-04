@@ -626,20 +626,7 @@ class Admin(commands.Cog):
             color=0xff4444 if self.bot.maintenance else 0x2B2D31
         ))
 
-    @commands.command()
-    @ctx_owner()
-    async def aimode(self, ctx, status: str = None):
-        """Toggle AI chat globally (owner only)."""
-        if not hasattr(self.bot, "ai_enabled"):
-            self.bot.ai_enabled = True
-        if not status:
-            state = "ON" if self.bot.ai_enabled else "OFF"
-            return await ctx.reply(f"AI chat globally: **{state}**.")
-        self.bot.ai_enabled = status.lower() in ("on", "true", "1", "yes")
-        state = "ON" if self.bot.ai_enabled else "OFF"
-        await ctx.reply(embed=discord.Embed(
-            description=f"AI chat globally: **{state}**.", color=0x2B2D31
-        ))
+    # aimode moved to cogs/ai_chat.py
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)

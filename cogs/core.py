@@ -185,8 +185,17 @@ class Core(commands.Cog):
 
         # ── 2. AFK return ───────────────────────────────────────────────────
         user_afk = await afk_col.find_one(
-            {"user_id": message.author.id, "guild_id": message.guild.id}
+            {"user_id": str(message.author.id), "guild_id": str(message.guild.id)}
         )
+        if user_afk:
+            # 30-second grace period — don't clear AFK if they just set it
+            afk_set_time = user_afk.get("time")
+            if afk_set_time:
+                if afk_set_time.tzinfo is None:
+                    afk_set_time = afk_set_time.replace(tzinfo=timezone.utc)
+                seconds_since = (dt.now(timezone.utc) - afk_set_time).total_seconds()
+                if seconds_since < 30:
+                    user_afk = None   # treat as not AFK yet — ignore this message
         if user_afk:
             away_str = ""
             if "time" in user_afk:
@@ -196,7 +205,7 @@ class Core(commands.Cog):
                 mins = int((dt.now(timezone.utc) - t).total_seconds() / 60)
                 if mins > 0:
                     away_str = f" (away {mins}m)"
-            await afk_col.delete_one({"_id": user_afk["_id"]})
+            await afk_col.delete_one({"user_id": str(message.author.id), "guild_id": str(message.guild.id)})
             try:
                 if message.guild.me.guild_permissions.manage_nicknames:
                     new_nick = message.author.display_name.replace("[AFK] ", "")
@@ -216,14 +225,16 @@ class Core(commands.Cog):
                          if not m.bot and m.id != message.author.id]
         for mentioned in real_mentions:
             t_afk = await afk_col.find_one(
-                {"user_id": mentioned.id, "guild_id": message.guild.id}
+                {"user_id": str(mentioned.id), "guild_id": str(message.guild.id)}
             )
             if t_afk:
                 reason   = t_afk.get("reason", "Away from keyboard")
                 afk_time = t_afk.get("time")
+                if afk_time and afk_time.tzinfo is None:
+                    afk_time = afk_time.replace(tzinfo=timezone.utc)
                 ts_str   = f" (<t:{int(afk_time.timestamp())}:R>)" if afk_time else ""
                 await message.reply(embed=discord.Embed(
-                    description=f"**{mentioned.display_name}** is AFK{ts_str}.\nReason: `{reason}`",
+                    description=f"💤 **{mentioned.display_name}** is AFK{ts_str}.\nReason: `{reason}`",
                     color=0x2B2D31
                 ), mention_author=False)
 

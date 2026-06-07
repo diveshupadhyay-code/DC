@@ -291,6 +291,19 @@ REGISTRY: dict[str, list[tuple]] = {
         ("dm @user <message>",             "Send a DM to any user as the bot",         "owner", False),
         ("sync [guild_id]",                "Sync slash commands",                      "owner", False),
     ],
+
+    "tracker": [
+        ("invites [@user]",              "How many people a user has invited",          "everyone", False),
+        ("inviteleaderboard",            "Top 10 inviters in the server",               "everyone", False),
+        ("inviteinfo <code>",            "Detailed info about a specific invite link",  "everyone", False),
+        ("invitelog #channel",           "Set the invite join/leave log channel",       "admin",    False),
+        ("invitelogdisable",             "Disable invite logging for this server",      "admin",    False),
+        ("invitereset [@user]",          "Reset invite count for a user or all",        "admin",    False),
+        ("messages [@user]",             "Total messages sent by a user + server rank", "everyone", False),
+        ("msgleaderboard",               "Top 10 most active chatters in the server",   "everyone", False),
+        ("msgstats",                     "Server-wide message totals, avg, top chatter","everyone", False),
+        ("msgreset [@user]",             "Reset message count for a user or all",       "admin",    False),
+    ],
 }
 
 # Flat list for search
@@ -319,6 +332,7 @@ CAT_META: dict[str, tuple[str, str, str]] = {
     "invest":   ("Invest",       "📈", "Stock market, buy/sell, portfolio, P&L"),
     "games":    ("Games",        "🎮", "Number guess, counting, word guess (Hangman)"),
     "owner":    ("Owner",        "👑", "Premium mgmt, AI toggle, server tools"),
+    "tracker":  ("Tracker",      "📊", "Invite tracker, invite logs, message counter"),
 }
 
 # Ordered list of all category keys (used for pagination prev/next)
@@ -815,6 +829,7 @@ class Help(commands.Cog):
         app_commands.Choice(name="💰 Economy",      value="economy"),
         app_commands.Choice(name="📈 Invest",       value="invest"),
         app_commands.Choice(name="🎮 Games",        value="games"),
+        app_commands.Choice(name="📊 Tracker",      value="tracker"),
     ])
     async def slash_help(
         self,

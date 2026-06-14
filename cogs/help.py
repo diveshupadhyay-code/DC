@@ -275,16 +275,14 @@ REGISTRY: dict[str, list[tuple]] = {
         ("wordguess stop",           "End the current word guess game",                "mod",      False),
     ],
 
-    "levelroles": [
-        ("levelroles setup",                  "Auto-create all 100 level roles + 7 extra perm roles", "admin",    True),
-        ("levelroles",                         "Level roles dashboard — status + tier overview",       "admin",    True),
-        ("levelroles managechannel #ch",       "Toggle a channel for auto permission management",      "admin",    True),
-        ("levelroles sync",                    "Re-apply all level roles and perms to all members",    "admin",    True),
-        ("levelroles info <level>",            "Show role and permissions for a specific level",       "everyone", True),
-        ("levelroles grant @member @role",     "Give a member an extra perm role (e.g. Gif, React)",  "admin",    True),
-        ("levelroles revoke @member @role",    "Remove an extra perm role from a member",              "admin",    True),
-        ("levelroles grants [@member]",        "List all extra perm roles a member has been granted",  "everyone", True),
-        ("levelroles teardown",                "Delete all 107 created roles (requires confirmation)", "admin",    True),
+    "extraperm": [
+        ("extraperm setup",              "Create all 10 extra perm roles in one go",               "admin",    True),
+        ("extraperm",                    "Dashboard — all roles, who has them, counts",             "admin",    True),
+        ("extraperm give @member <role>","Assign an extra perm role to any member",                "admin",    True),
+        ("extraperm take @member <role>","Remove an extra perm role from a member",                "admin",    True),
+        ("extraperm list [@member]",     "See which extra perm roles a member has",                "everyone", True),
+        ("extraperm info [rolename]",    "What permissions a role grants + who has it",            "everyone", True),
+        ("extraperm teardown",           "Delete all created extra perm roles (confirmation)",     "admin",    True),
     ],
 
     "owner": [
@@ -343,7 +341,7 @@ CAT_META: dict[str, tuple[str, str, str]] = {
     "economy":  ("Economy",      "💰", "Balance, daily, work, slots, rob, trade"),
     "invest":   ("Invest",       "📈", "Stock market, buy/sell, portfolio, P&L"),
     "games":    ("Games",        "🎮", "Number guess, counting, word guess (Hangman)"),
-    "levelroles":("Level Roles",  "🎖", "Auto level roles Lvl 1-100, extra perm roles"),
+    "extraperm": ("Extra Perms",  "🔑", "Gif, React, Media, Ext, Speak, Stream roles"),
     "owner":    ("Owner",        "👑", "Premium mgmt, AI toggle, server tools"),
     "tracker":  ("Tracker",      "📊", "Invite tracker, invite logs, message counter"),
 }

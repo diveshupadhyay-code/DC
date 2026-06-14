@@ -57,6 +57,7 @@ COGS = [
     "cogs.games",
     "cogs.economy",
     "cogs.invest",
+    "cogs.levelroles",   # Level role system (Premium)
     "cogs.tracker",      # ← NEW: invite tracker + message counter
 ]
 

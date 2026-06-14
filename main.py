@@ -58,6 +58,7 @@ COGS = [
     "cogs.economy",
     "cogs.invest",
     "cogs.levelroles",   # Level role system (Premium)
+    "cogs.extraperm",    # Extra perm roles standalone (Premium)
     "cogs.tracker",      # ← NEW: invite tracker + message counter
 ]
 

@@ -57,6 +57,9 @@ global_status_col   = db["global_status"]   # owner global status overrides
 lr_config_col       = db["lr_config"]       # {guild_id, level_role_ids, extra_role_ids, managed_ch_ids}
 lr_extra_col        = db["lr_extra"]        # {guild_id, user_id, role_ids:[]}
 
+# ── Extra Perm Roles collections ────────────────────────────────────────────
+ep_config_col       = db["extraperm_config"] # {guild_id, roles:{name:role_id}}
+
 # ── Tracker collections (invite tracker + message counter) ────────────────────
 invites_col         = db["invite_tracker"]      # {guild_id, inviter_id, code, uses, ...}
 invite_log_col      = db["invite_log_config"]   # {guild_id, channel_id}

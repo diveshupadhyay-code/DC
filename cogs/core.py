@@ -320,20 +320,29 @@ class Core(commands.Cog):
         doc  = await levels_col.find_one({"guild_id": gid, "user_id": uid})
         xp    = (doc.get("xp",0) if doc else 0) + _r.randint(5, 15)
         level = doc.get("level", 0) if doc else 0
+        leveled_up = False
         if xp >= (level + 1) * 100:
-            xp    = 0
-            level += 1
-            await message.channel.send(
-                embed=discord.Embed(
-                    description=f"{message.author.mention} reached **Level {level}**!",
-                    color=0x2B2D31
-                ), delete_after=10
-            )
+            xp        = 0
+            level    += 1
+            leveled_up = True
+            gs = await settings_col.find_one({"_id": gid})
+            if not gs or gs.get("levels_enabled", True):
+                await message.channel.send(
+                    embed=discord.Embed(
+                        description=f"{message.author.mention} reached **Level {level}**!",
+                        color=0x2B2D31
+                    ), delete_after=10
+                )
         await levels_col.update_one(
             {"guild_id": gid, "user_id": uid},
             {"$set": {"xp": xp, "level": level}},
             upsert=True
         )
+        # Notify LevelRoles cog so it assigns the correct role + channel perms
+        if leveled_up:
+            lr_cog = message._state._get_client().get_cog("LevelRoles")
+            if lr_cog:
+                await lr_cog.on_level_up(message.guild, message.author, level)
 
     # ── Member join/leave ──────────────────────────────────────────────────────
     @commands.Cog.listener()

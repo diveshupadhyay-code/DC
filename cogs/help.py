@@ -275,6 +275,18 @@ REGISTRY: dict[str, list[tuple]] = {
         ("wordguess stop",           "End the current word guess game",                "mod",      False),
     ],
 
+    "levelroles": [
+        ("levelroles setup",                  "Auto-create all 100 level roles + 7 extra perm roles", "admin",    True),
+        ("levelroles",                         "Level roles dashboard — status + tier overview",       "admin",    True),
+        ("levelroles managechannel #ch",       "Toggle a channel for auto permission management",      "admin",    True),
+        ("levelroles sync",                    "Re-apply all level roles and perms to all members",    "admin",    True),
+        ("levelroles info <level>",            "Show role and permissions for a specific level",       "everyone", True),
+        ("levelroles grant @member @role",     "Give a member an extra perm role (e.g. Gif, React)",  "admin",    True),
+        ("levelroles revoke @member @role",    "Remove an extra perm role from a member",              "admin",    True),
+        ("levelroles grants [@member]",        "List all extra perm roles a member has been granted",  "everyone", True),
+        ("levelroles teardown",                "Delete all 107 created roles (requires confirmation)", "admin",    True),
+    ],
+
     "owner": [
         ("premium add server <id>",        "Activate premium for a server",            "owner", False),
         ("premium add user <id>",          "Activate premium for a user",              "owner", False),
@@ -331,6 +343,7 @@ CAT_META: dict[str, tuple[str, str, str]] = {
     "economy":  ("Economy",      "💰", "Balance, daily, work, slots, rob, trade"),
     "invest":   ("Invest",       "📈", "Stock market, buy/sell, portfolio, P&L"),
     "games":    ("Games",        "🎮", "Number guess, counting, word guess (Hangman)"),
+    "levelroles":("Level Roles",  "🎖", "Auto level roles Lvl 1-100, extra perm roles"),
     "owner":    ("Owner",        "👑", "Premium mgmt, AI toggle, server tools"),
     "tracker":  ("Tracker",      "📊", "Invite tracker, invite logs, message counter"),
 }

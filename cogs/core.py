@@ -320,29 +320,20 @@ class Core(commands.Cog):
         doc  = await levels_col.find_one({"guild_id": gid, "user_id": uid})
         xp    = (doc.get("xp",0) if doc else 0) + _r.randint(5, 15)
         level = doc.get("level", 0) if doc else 0
-        leveled_up = False
         if xp >= (level + 1) * 100:
-            xp        = 0
-            level    += 1
-            leveled_up = True
-            gs = await settings_col.find_one({"_id": gid})
-            if not gs or gs.get("levels_enabled", True):
-                await message.channel.send(
-                    embed=discord.Embed(
-                        description=f"{message.author.mention} reached **Level {level}**!",
-                        color=0x2B2D31
-                    ), delete_after=10
-                )
+            xp    = 0
+            level += 1
+            await message.channel.send(
+                embed=discord.Embed(
+                    description=f"{message.author.mention} reached **Level {level}**!",
+                    color=0x2B2D31
+                ), delete_after=10
+            )
         await levels_col.update_one(
             {"guild_id": gid, "user_id": uid},
             {"$set": {"xp": xp, "level": level}},
             upsert=True
         )
-        # Notify LevelRoles cog so it assigns the correct role + channel perms
-        if leveled_up:
-            lr_cog = message._state._get_client().get_cog("LevelRoles")
-            if lr_cog:
-                await lr_cog.on_level_up(message.guild, message.author, level)
 
     # ── Member join/leave ──────────────────────────────────────────────────────
     @commands.Cog.listener()
@@ -355,17 +346,22 @@ class Core(commands.Cog):
         if not ch:
             return
 
-        embed = discord.Embed(color=0x2B2D31)
-        embed.set_author(
-            name=f"Welcome to {member.guild.name}!",
-            icon_url=member.guild.icon.url if member.guild.icon else None
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.description = (
-            f"Hey {member.mention}, welcome!\n"
-            f"You're member **#{member.guild.member_count}**."
-        )
-        embed.set_footer(text=f"Account created {member.created_at.strftime('%d %b %Y')}")
+        welcome_cog = self.bot.get_cog("Welcome")
+        custom_msg  = data.get("welcome_custom_msg")
+        if welcome_cog:
+            embed = welcome_cog._build_welcome_embed(member, member.guild, custom_msg)
+        else:
+            embed = discord.Embed(color=0x2B2D31)
+            embed.set_author(
+                name=f"Welcome to {member.guild.name}!",
+                icon_url=member.guild.icon.url if member.guild.icon else None
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.description = (
+                f"Hey {member.mention}, welcome!\n"
+                f"You're member **#{member.guild.member_count}**."
+            )
+            embed.set_footer(text=f"Account created {member.created_at.strftime('%d %b %Y')}")
         await ch.send(embed=embed)
         await log_event(self.bot, member.guild, "member_join", f"{member} joined.")
 
@@ -379,19 +375,24 @@ class Core(commands.Cog):
         if not ch:
             return
 
-        embed = discord.Embed(color=0x2B2D31)
-        embed.set_author(
-            name=f"{member.display_name} left the server",
-            icon_url=member.display_avatar.url
-        )
-        embed.description = (
-            f"**{member.mention}** has left.\n"
-            f"Members remaining: **{member.guild.member_count}**"
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(
-            text=f"Joined {member.joined_at.strftime('%d %b %Y') if member.joined_at else 'Unknown'}"
-        )
+        welcome_cog = self.bot.get_cog("Welcome")
+        custom_msg  = data.get("bye_custom_msg")
+        if welcome_cog:
+            embed = welcome_cog._build_bye_embed(member, member.guild, custom_msg)
+        else:
+            embed = discord.Embed(color=0x2B2D31)
+            embed.set_author(
+                name=f"{member.display_name} left the server",
+                icon_url=member.display_avatar.url
+            )
+            embed.description = (
+                f"**{member.mention}** has left.\n"
+                f"Members remaining: **{member.guild.member_count}**"
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.set_footer(
+                text=f"Joined {member.joined_at.strftime('%d %b %Y') if member.joined_at else 'Unknown'}"
+            )
         await ch.send(embed=embed)
         await log_event(self.bot, member.guild, "member_leave", f"{member} left.")
 

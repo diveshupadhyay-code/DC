@@ -5,6 +5,8 @@ cogs/welcome.py — Welcome/bye messages, logging config, automod, counters.
 import discord
 from discord.ext import commands
 from utils.db import settings_col, logs_col, counters_col
+
+VARS_HELP = "`{user}` mention  `{username}` name  `{server}` server name  `{count}` member count  `{usertag}` user#0000"
 from utils.helpers import ctx_admin, ctx_mod, log_event, update_server_data
 
 
@@ -16,21 +18,29 @@ class Welcome(commands.Cog):
     @commands.group(invoke_without_command=True)
     @commands.has_permissions(administrator=True)
     async def welcome(self, ctx):
-        """Configure welcome messages. Sub-commands: set, enable, disable, test"""
-        gs  = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
-        cid = gs.get("welcome_channel")
-        ch  = f"<#{cid}>" if cid else "Not set"
-        en  = "Enabled" if gs.get("welcome_enabled") else "Disabled"
-        embed = discord.Embed(title="Welcome Settings", color=0x2B2D31)
+        """Configure welcome messages. Sub-commands: set, enable, disable, test, message, resetmsg"""
+        gs       = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        cid      = gs.get("welcome_channel")
+        ch       = f"<#{cid}>" if cid else "Not set"
+        en       = "Enabled" if gs.get("welcome_enabled") else "Disabled"
+        custom   = gs.get("welcome_custom_msg")
+        embed    = discord.Embed(title="Welcome Settings", color=0x2B2D31)
         embed.add_field(name="Status",  value=en, inline=True)
         embed.add_field(name="Channel", value=ch, inline=True)
+        embed.add_field(
+            name="Custom Message",
+            value=f"`{custom[:80]}...`" if custom and len(custom) > 80 else (f"`{custom}`" if custom else "Default"),
+            inline=False
+        )
         embed.add_field(
             name="Sub-commands",
             value=(
                 "`,welcome set #channel` — set channel\n"
-                "`,welcome enable` — turn on\n"
-                "`,welcome disable` — turn off\n"
-                "`,welcome test` — preview message"
+                "`,welcome enable/disable` — toggle\n"
+                "`,welcome message <text>` — set custom message\n"
+                "`,welcome resetmsg` — revert to default\n"
+                "`,welcome test` — preview\n\n"
+                f"Variables: {VARS_HELP}"
             ),
             inline=False
         )
@@ -63,10 +73,60 @@ class Welcome(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def welcome_test(self, ctx):
         """Preview what the welcome message looks like."""
-        embed = self._build_welcome_embed(ctx.author, ctx.guild)
+        gs     = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        custom = gs.get("welcome_custom_msg")
+        embed  = self._build_welcome_embed(ctx.author, ctx.guild, custom)
         await ctx.reply("Preview:", embed=embed)
 
-    def _build_welcome_embed(self, member: discord.Member, guild: discord.Guild) -> discord.Embed:
+    @welcome.command(name="message", aliases=["msg", "setmsg"])
+    @commands.has_permissions(administrator=True)
+    async def welcome_message(self, ctx, *, text: str = None):
+        """Set a custom welcome message. Use {user} {username} {server} {count} {usertag}."""
+        if not text:
+            return await ctx.reply(
+                f"Usage: `,welcome message <text>`\n"
+                f"Variables: {VARS_HELP}\n\n"
+                "Example: `,welcome message Welcome {user} to {server}! You are member #{count}.`"
+            )
+        if len(text) > 500:
+            return await ctx.reply("Message must be 500 characters or fewer.")
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$set": {"welcome_custom_msg": text}},
+            upsert=True
+        )
+        preview = self._render(text, ctx.author, ctx.guild)
+        embed   = discord.Embed(
+            title="Welcome Message Updated",
+            color=0x57F287
+        )
+        embed.add_field(name="Saved",   value=f"`{text}`",   inline=False)
+        embed.add_field(name="Preview", value=preview,       inline=False)
+        await ctx.reply(embed=embed)
+
+    @welcome.command(name="resetmsg")
+    @commands.has_permissions(administrator=True)
+    async def welcome_resetmsg(self, ctx):
+        """Revert welcome message to the default."""
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$unset": {"welcome_custom_msg": ""}},
+            upsert=True
+        )
+        await ctx.reply("Welcome message reset to default.")
+
+    def _render(self, text: str, member: discord.Member, guild: discord.Guild) -> str:
+        """Replace variables in a custom message string."""
+        return (
+            text
+            .replace("{user}",     member.mention)
+            .replace("{username}", member.display_name)
+            .replace("{usertag}",  str(member))
+            .replace("{server}",   guild.name)
+            .replace("{count}",    str(guild.member_count))
+        )
+
+    def _build_welcome_embed(self, member: discord.Member, guild: discord.Guild, custom_msg: str = None) -> discord.Embed:
         embed = discord.Embed(color=0x2B2D31)
         embed.set_author(
             name=f"Welcome to {guild.name}!",
@@ -86,21 +146,29 @@ class Welcome(commands.Cog):
     @commands.group(invoke_without_command=True)
     @commands.has_permissions(administrator=True)
     async def bye(self, ctx):
-        """Configure bye messages. Sub-commands: set, enable, disable, test"""
-        gs  = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
-        cid = gs.get("bye_channel")
-        ch  = f"<#{cid}>" if cid else "Not set"
-        en  = "Enabled" if gs.get("bye_enabled") else "Disabled"
-        embed = discord.Embed(title="Bye Settings", color=0x2B2D31)
+        """Configure bye messages. Sub-commands: set, enable, disable, test, message, resetmsg"""
+        gs     = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        cid    = gs.get("bye_channel")
+        ch     = f"<#{cid}>" if cid else "Not set"
+        en     = "Enabled" if gs.get("bye_enabled") else "Disabled"
+        custom = gs.get("bye_custom_msg")
+        embed  = discord.Embed(title="Bye Settings", color=0x2B2D31)
         embed.add_field(name="Status",  value=en, inline=True)
         embed.add_field(name="Channel", value=ch, inline=True)
+        embed.add_field(
+            name="Custom Message",
+            value=f"`{custom[:80]}...`" if custom and len(custom) > 80 else (f"`{custom}`" if custom else "Default"),
+            inline=False
+        )
         embed.add_field(
             name="Sub-commands",
             value=(
                 "`,bye set #channel` — set channel\n"
-                "`,bye enable` — turn on\n"
-                "`,bye disable` — turn off\n"
-                "`,bye test` — preview message"
+                "`,bye enable/disable` — toggle\n"
+                "`,bye message <text>` — set custom message\n"
+                "`,bye resetmsg` — revert to default\n"
+                "`,bye test` — preview\n\n"
+                f"Variables: {VARS_HELP}"
             ),
             inline=False
         )
@@ -137,10 +205,46 @@ class Welcome(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def bye_test(self, ctx):
         """Preview the bye message."""
-        embed = self._build_bye_embed(ctx.author, ctx.guild)
+        gs     = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+        custom = gs.get("bye_custom_msg")
+        embed  = self._build_bye_embed(ctx.author, ctx.guild, custom)
         await ctx.reply("Preview:", embed=embed)
 
-    def _build_bye_embed(self, member: discord.Member, guild: discord.Guild) -> discord.Embed:
+    @bye.command(name="message", aliases=["msg", "setmsg"])
+    @commands.has_permissions(administrator=True)
+    async def bye_message(self, ctx, *, text: str = None):
+        """Set a custom goodbye message. Use {user} {username} {server} {count} {usertag}."""
+        if not text:
+            return await ctx.reply(
+                f"Usage: `,bye message <text>`\n"
+                f"Variables: {VARS_HELP}\n\n"
+                "Example: `,bye message Goodbye {username}, we will miss you!`"
+            )
+        if len(text) > 500:
+            return await ctx.reply("Message must be 500 characters or fewer.")
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$set": {"bye_custom_msg": text}},
+            upsert=True
+        )
+        preview = self._render(text, ctx.author, ctx.guild)
+        embed   = discord.Embed(title="Goodbye Message Updated", color=0x57F287)
+        embed.add_field(name="Saved",   value=f"`{text}`", inline=False)
+        embed.add_field(name="Preview", value=preview,     inline=False)
+        await ctx.reply(embed=embed)
+
+    @bye.command(name="resetmsg")
+    @commands.has_permissions(administrator=True)
+    async def bye_resetmsg(self, ctx):
+        """Revert goodbye message to the default."""
+        await settings_col.update_one(
+            {"_id": str(ctx.guild.id)},
+            {"$unset": {"bye_custom_msg": ""}},
+            upsert=True
+        )
+        await ctx.reply("Goodbye message reset to default.")
+
+    def _build_bye_embed(self, member: discord.Member, guild: discord.Guild, custom_msg: str = None) -> discord.Embed:
         embed = discord.Embed(color=0x2B2D31)
         embed.set_author(
             name=f"{member.display_name} left the server",

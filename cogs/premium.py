@@ -354,27 +354,44 @@ class Premium(commands.Cog):
     async def bumpreminder(self, ctx, status: str = "on"):
         """
         Enable or disable the DISBOARD bump reminder.
-        Happy watches for DISBOARD's bump confirmation and pings 2 hours later.
         Usage: ,bumpreminder on/off
+        Add --role @role to ping a role when it is time to bump.
         """
-        state = status.lower() == "on"
+        import re as _re
+        ping_role: discord.Role | None = None
+
+        raw = status
+        role_match = _re.search(r"<@&(\d+)>", raw)
+        if role_match:
+            ping_role = ctx.guild.get_role(int(role_match.group(1)))
+            raw = raw[:role_match.start()].strip()
+
+        state = raw.lower() in ("on", "true", "1", "yes") if raw else True
+
+        update_data = {
+            "enabled":    state,
+            "channel_id": str(ctx.channel.id),
+            "set_by":     str(ctx.author.id),
+        }
+        if ping_role:
+            update_data["ping_role_id"] = str(ping_role.id)
+        elif state is False:
+            update_data["ping_role_id"] = None
 
         await bump_col.update_one(
             {"guild_id": str(ctx.guild.id)},
-            {"$set": {
-                "enabled":    state,
-                "channel_id": str(ctx.channel.id),
-                "set_by":     str(ctx.author.id)
-            }},
+            {"$set": update_data},
             upsert=True
         )
 
         if state:
+            doc = await bump_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
+            saved_role_id = doc.get("ping_role_id")
+            saved_role    = ctx.guild.get_role(int(saved_role_id)) if saved_role_id else None
             embed = discord.Embed(
                 title="Bump Reminder — Enabled",
                 description=(
                     f"Happy is now watching for DISBOARD bumps in this server.\n\n"
-                    f"**How it works:**\n"
                     f"1. Someone uses `/bump` on DISBOARD\n"
                     f"2. Happy detects the bump confirmation\n"
                     f"3. After **2 hours**, Happy pings in {ctx.channel.mention}\n"
@@ -382,13 +399,45 @@ class Premium(commands.Cog):
                 ),
                 color=GOLD
             )
+            embed.add_field(
+                name="Ping Role",
+                value=saved_role.mention if saved_role else "None — use `,bumpreminder on @role` to set one",
+                inline=False
+            )
             embed.set_footer(text="DISBOARD Bot ID: 302050872383242240")
         else:
-            embed = discord.Embed(
-                description="Bump reminder disabled.",
-                color=0x2B2D31
-            )
+            embed = discord.Embed(description="Bump reminder disabled.", color=0x2B2D31)
         await ctx.reply(embed=embed)
+
+    @commands.command(name="bumppingrole")
+    @ctx_premium()
+    @commands.has_permissions(administrator=True)
+    async def bumppingrole(self, ctx, role: discord.Role = None):
+        """Set or remove the role pinged by bump reminder. Usage: ,bumppingrole @role"""
+        if not role:
+            doc = await bump_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
+            rid = doc.get("ping_role_id")
+            current = ctx.guild.get_role(int(rid)).mention if rid and ctx.guild.get_role(int(rid)) else "Not set"
+            return await ctx.reply(embed=discord.Embed(
+                description=f"Current bump ping role: {current}\nUsage: `,bumppingrole @role` or `,bumppingrole remove`",
+                color=0x2B2D31
+            ))
+        if str(role) == "remove":
+            await bump_col.update_one(
+                {"guild_id": str(ctx.guild.id)},
+                {"$unset": {"ping_role_id": ""}},
+                upsert=True
+            )
+            return await ctx.reply("Bump ping role removed.")
+        await bump_col.update_one(
+            {"guild_id": str(ctx.guild.id)},
+            {"$set": {"ping_role_id": str(role.id)}},
+            upsert=True
+        )
+        await ctx.reply(embed=discord.Embed(
+            description=f"Bump reminder will now ping {role.mention} when it's time to bump.",
+            color=GOLD
+        ))
 
     # ══════════════════════════════════════════════════════════════════════════
     #  VOICEMASTER — Temporary Voice Channels

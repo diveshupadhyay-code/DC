@@ -307,10 +307,17 @@ class Core(commands.Cog):
         ch = self.bot.get_channel(int(doc["channel_id"]))
         if ch:
             await asyncio.sleep(7200)
-            await ch.send(embed=discord.Embed(
+            ping_role_id = doc.get("ping_role_id")
+            ping_content = None
+            if ping_role_id:
+                role = ch.guild.get_role(int(ping_role_id))
+                if role:
+                    ping_content = role.mention
+            embed = discord.Embed(
                 description="Time to bump the server! Use `/bump` on DISBOARD.",
                 color=0x2B2D31
-            ))
+            )
+            await ch.send(content=ping_content, embed=embed)
 
     # ── XP helper ─────────────────────────────────────────────────────────────
     async def _award_xp(self, message: discord.Message):
@@ -346,22 +353,17 @@ class Core(commands.Cog):
         if not ch:
             return
 
-        welcome_cog = self.bot.get_cog("Welcome")
-        custom_msg  = data.get("welcome_custom_msg")
-        if welcome_cog:
-            embed = welcome_cog._build_welcome_embed(member, member.guild, custom_msg)
-        else:
-            embed = discord.Embed(color=0x2B2D31)
-            embed.set_author(
-                name=f"Welcome to {member.guild.name}!",
-                icon_url=member.guild.icon.url if member.guild.icon else None
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-            embed.description = (
-                f"Hey {member.mention}, welcome!\n"
-                f"You're member **#{member.guild.member_count}**."
-            )
-            embed.set_footer(text=f"Account created {member.created_at.strftime('%d %b %Y')}")
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(
+            name=f"Welcome to {member.guild.name}!",
+            icon_url=member.guild.icon.url if member.guild.icon else None
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.description = (
+            f"Hey {member.mention}, welcome!\n"
+            f"You're member **#{member.guild.member_count}**."
+        )
+        embed.set_footer(text=f"Account created {member.created_at.strftime('%d %b %Y')}")
         await ch.send(embed=embed)
         await log_event(self.bot, member.guild, "member_join", f"{member} joined.")
 
@@ -375,24 +377,19 @@ class Core(commands.Cog):
         if not ch:
             return
 
-        welcome_cog = self.bot.get_cog("Welcome")
-        custom_msg  = data.get("bye_custom_msg")
-        if welcome_cog:
-            embed = welcome_cog._build_bye_embed(member, member.guild, custom_msg)
-        else:
-            embed = discord.Embed(color=0x2B2D31)
-            embed.set_author(
-                name=f"{member.display_name} left the server",
-                icon_url=member.display_avatar.url
-            )
-            embed.description = (
-                f"**{member.mention}** has left.\n"
-                f"Members remaining: **{member.guild.member_count}**"
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_footer(
-                text=f"Joined {member.joined_at.strftime('%d %b %Y') if member.joined_at else 'Unknown'}"
-            )
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(
+            name=f"{member.display_name} left the server",
+            icon_url=member.display_avatar.url
+        )
+        embed.description = (
+            f"**{member.mention}** has left.\n"
+            f"Members remaining: **{member.guild.member_count}**"
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(
+            text=f"Joined {member.joined_at.strftime('%d %b %Y') if member.joined_at else 'Unknown'}"
+        )
         await ch.send(embed=embed)
         await log_event(self.bot, member.guild, "member_leave", f"{member} left.")
 
@@ -428,9 +425,16 @@ class Core(commands.Cog):
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction: discord.Interaction, error):
         from discord import app_commands
-        msg = str(error)
-        if isinstance(error, app_commands.MissingPermissions):
-            msg = "You don't have permission to use this command."
+        if isinstance(error, app_commands.BotMissingPermissions):
+            missing = ", ".join(p.replace("_", " ").title() for p in error.missing_permissions)
+            msg = f"I need `{missing}` to run this command."
+        elif isinstance(error, app_commands.MissingPermissions):
+            missing = ", ".join(p.replace("_", " ").title() for p in error.missing_permissions)
+            msg = f"You need `{missing}` to use this command."
+        elif isinstance(error, app_commands.CommandOnCooldown):
+            msg = f"Slow down! Try again in {error.retry_after:.1f}s."
+        else:
+            msg = str(error)
         try:
             if not interaction.response.is_done():
                 await interaction.response.send_message(f"**Error:** {msg}", ephemeral=True)
@@ -443,22 +447,57 @@ class Core(commands.Cog):
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
             return
-        if isinstance(error, (commands.MissingPermissions, commands.CheckFailure)):
+        if isinstance(error, commands.DisabledCommand):
+            return
+        if isinstance(error, commands.BotMissingPermissions):
+            missing = ", ".join(p.replace("_", " ").title() for p in error.missing_permissions)
             embed = discord.Embed(
-                description=f"**Access Denied:** {str(error)}", color=0xff0000
+                title="Bot Missing Permissions",
+                description=(
+                    f"I need the following permission(s) to run `{ctx.command}`:\n"
+                    f"`{missing}`\n\n"
+                    "Please give me the required permissions and try again."
+                ),
+                color=0xED4245
+            )
+            return await ctx.reply(embed=embed, delete_after=15)
+        if isinstance(error, commands.MissingPermissions):
+            missing = ", ".join(p.replace("_", " ").title() for p in error.missing_permissions)
+            embed = discord.Embed(
+                title="Missing Permissions",
+                description=(
+                    f"You need the following permission(s) to use `{ctx.command}`:\n"
+                    f"`{missing}`"
+                ),
+                color=0xED4245
+            )
+            return await ctx.reply(embed=embed, delete_after=8)
+        if isinstance(error, commands.CheckFailure):
+            embed = discord.Embed(
+                description=f"You don't have permission to use `{ctx.command}`.",
+                color=0xED4245
             )
             return await ctx.reply(embed=embed, delete_after=8)
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 description=f"Missing argument. Try `,help {ctx.command.name}`.",
-                color=0xff0000
+                color=0xED4245
             )
             return await ctx.reply(embed=embed, delete_after=8)
         if isinstance(error, commands.BadArgument):
             embed = discord.Embed(
-                description=f"Invalid argument: {error}", color=0xff0000
+                description=f"Invalid argument: {error}",
+                color=0xED4245
             )
             return await ctx.reply(embed=embed, delete_after=8)
+        if isinstance(error, commands.NoPrivateMessage):
+            return await ctx.reply("This command can only be used in a server.", delete_after=8)
+        if isinstance(error, commands.CommandOnCooldown):
+            embed = discord.Embed(
+                description=f"Slow down! Try again in **{error.retry_after:.1f}s**.",
+                color=0xED4245
+            )
+            return await ctx.reply(embed=embed, delete_after=5)
         print(f"[Error][{ctx.command}] {error}")
 
 

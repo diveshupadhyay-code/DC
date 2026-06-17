@@ -29,12 +29,14 @@ from typing import Optional
 from utils.db import settings_col
 from utils.helpers import BOT_OWNER_ID, is_premium_user, is_premium_server
 
+# ── Permission helpers ────────────────────────────────────────────────────────
 PERM_ORDER  = {"everyone": 0, "mod": 1, "admin": 2, "owner": 3}
 PERM_LABELS = {"everyone": "Member", "mod": "Moderator", "admin": "Administrator", "owner": "Bot Owner"}
 PERM_COLORS = {"everyone": 0x5865F2, "mod": 0x57F287, "admin": 0xED4245, "owner": 0xffd700}
 
 PERM_BADGE  = {"mod": "🔨 Mod", "admin": "⚙️ Admin", "owner": "👑 Owner", "everyone": ""}
 PERM_EMOJI  = {"everyone": "👥", "mod": "🔨", "admin": "⚙️", "owner": "👑"}
+
 
 def _user_level(member: discord.Member, owner_id: int) -> str:
     if member.id == owner_id:
@@ -45,6 +47,11 @@ def _user_level(member: discord.Member, owner_id: int) -> str:
     if p.manage_messages or p.kick_members or p.manage_roles or p.ban_members:
         return "mod"
     return "everyone"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  COMMAND REGISTRY  (one entry per category — duplicates removed)
+# ══════════════════════════════════════════════════════════════════════════════
 
 REGISTRY: dict[str, list[tuple]] = {
 
@@ -170,23 +177,19 @@ REGISTRY: dict[str, list[tuple]] = {
     ],
 
     "setup": [
-        ("quicksetup",                    "Auto-create channels, categories, and roles",          "admin", False),
-        ("jailsetup",                     "Create Jailed role + private jail channel",            "admin", False),
-        ("setupmute",                     "Create Muted/Image Muted/Reaction Muted roles",        "admin", False),
-        ("welcome set #channel",          "Set the welcome message channel",                      "admin", False),
-        ("welcome enable/disable",        "Turn welcome messages on or off",                      "admin", False),
-        ("welcome message <text>",        "Set custom welcome message with variables",            "admin", False),
-        ("welcome resetmsg",              "Revert welcome message to default",                    "admin", False),
-        ("welcome test",                  "Preview the welcome message",                          "admin", False),
-        ("bye set #channel",              "Set the bye message channel",                          "admin", False),
-        ("bye enable/disable",            "Turn bye messages on or off",                          "admin", False),
-        ("bye message <text>",            "Set custom goodbye message with variables",            "admin", False),
-        ("bye resetmsg",                  "Revert goodbye message to default",                    "admin", False),
-        ("bye test",                      "Preview the bye message",                              "admin", False),
-        ("logs set #channel",             "Set the moderation log channel",                       "admin", False),
-        ("logs disable",                  "Disable logging",                                      "admin", False),
-        ("automod invite on/off",         "Block Discord invite links server-wide",               "admin", False),
-        ("counter create <type> #vc",     "Live counter in a VC name",                            "admin", False),
+        ("quicksetup",               "Auto-create channels, categories, and roles",     "admin", False),
+        ("jailsetup",                "Create Jailed role + private jail channel",       "admin", False),
+        ("setupmute",                "Create Muted/Image Muted/Reaction Muted roles",   "admin", False),
+        ("welcome set #channel",     "Set the welcome message channel",                 "admin", False),
+        ("welcome enable/disable",   "Turn welcome messages on or off",                 "admin", False),
+        ("welcome test",             "Preview the welcome message",                     "admin", False),
+        ("bye set #channel",         "Set the bye message channel",                     "admin", False),
+        ("bye enable/disable",       "Turn bye messages on or off",                     "admin", False),
+        ("bye test",                 "Preview the bye message",                         "admin", False),
+        ("logs set #channel",        "Set the moderation log channel",                  "admin", False),
+        ("logs disable",             "Disable logging",                                 "admin", False),
+        ("automod invite on/off",    "Block Discord invite links server-wide",          "admin", False),
+        ("counter create <type> #vc","Live counter in a VC name",                       "admin", False),
     ],
 
     "admin": [
@@ -200,11 +203,9 @@ REGISTRY: dict[str, list[tuple]] = {
         ("disable <command>",        "Disable a command for this server",               "admin", False),
         ("enable <command>",         "Re-enable a disabled command",                    "admin", False),
         ("announce [#ch] <msg>",     "Send an announcement embed (--ping for @everyone)","mod", False),
-        ("giveaway <dur> <n> <prize>",     "Start a giveaway (30m/2h/1d)",                    "mod", False),
-        ("giveaway ... --msgs <n>",         "Require n messages to be eligible to win",         "mod", False),
-        ("giveaway ... --invites <n>",      "Require n accepted invites to be eligible",        "mod", False),
-        ("giveaway end <msg_id>",           "End a giveaway early",                             "mod", False),
-        ("giveaway reroll <msg_id>",        "Reroll winners for an ended giveaway",             "mod", False),
+        ("giveaway <dur> <n> <prize>","Start a giveaway (30m/2h/1d)",                  "mod",   False),
+        ("giveaway end <msg_id>",    "End a giveaway early",                            "mod",   False),
+        ("giveaway reroll <msg_id>", "Reroll winners for an ended giveaway",            "mod",   False),
         ("embed create",             "Start a new embed draft",                         "admin", False),
         ("embed title/desc/color",   "Edit your embed draft fields",                    "admin", False),
         ("embed send [#channel]",    "Send the finished embed",                         "admin", False),
@@ -223,6 +224,8 @@ REGISTRY: dict[str, list[tuple]] = {
         ("vcsetup name <template>",  "Set VC name template ({user} = member name)",     "admin",    True),
         ("vcsetup remove",           "Remove VoiceMaster and delete all temp VCs",      "admin",    True),
         ("bumpreminder on/off",      "DISBOARD bump reminder — pings 2h after bump",    "admin",    True),
+        ("bumpreminder on @role",     "Bump reminder with role ping",                    "admin",    True),
+        ("bumppingrole @role",         "Set or remove the role pinged on bump reminder",  "admin",    True),
         ("setstatus <text>",         "Add custom text to bot's rotating status",        "admin",    True),
         ("prefix self <symbol>",     "Personal prefix that works in all servers",       "everyone", True),
         ("prefix selfremove",        "Remove your personal prefix",                     "everyone", False),
@@ -274,28 +277,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("wordguess stop",           "End the current word guess game",                "mod",      False),
     ],
 
-    "extraperm": [
-        ("extraperm setup",               "Create all 10 extra perm roles in one go",            "admin",    True),
-        ("extraperm",                     "Dashboard — all roles, counts, who has them",         "admin",    True),
-        ("extraperm give @member <role>", "Assign an extra perm role to a member",               "admin",    True),
-        ("extraperm take @member <role>", "Remove an extra perm role from a member",             "admin",    True),
-        ("extraperm list [@member]",      "See which extra perm roles a member has",             "everyone", True),
-        ("extraperm info [rolename]",     "What permissions a role grants and who has it",       "everyone", True),
-        ("extraperm teardown",            "Delete all created extra perm roles",                 "admin",    True),
-    ],
-
-    "levelroles": [
-        ("levelroles setup",                  "Auto-create Lvl 1–100 roles and 7 extra perm roles", "admin", True),
-        ("levelroles",                        "Level roles dashboard — status and tier overview",   "admin", True),
-        ("levelroles managechannel #ch",      "Toggle a channel for auto permission management",    "admin", True),
-        ("levelroles sync",                   "Re-apply all level roles and perms to all members",  "admin", True),
-        ("levelroles info <level>",           "Show role and permissions for a specific level",     "everyone", True),
-        ("levelroles grant @member @role",    "Give a member an extra perm role",                  "admin", True),
-        ("levelroles revoke @member @role",   "Remove an extra perm role from a member",           "admin", True),
-        ("levelroles grants [@member]",       "List all extra perm roles a member has",            "everyone", True),
-        ("levelroles teardown",               "Delete all 107 created roles",                      "admin", True),
-    ],
-
     "owner": [
         ("premium add server <id>",        "Activate premium for a server",            "owner", False),
         ("premium add user <id>",          "Activate premium for a user",              "owner", False),
@@ -327,13 +308,16 @@ REGISTRY: dict[str, list[tuple]] = {
     ],
 }
 
+# Flat list for search
 ALL_COMMANDS = [
     (cat, syn, desc, perm, prem)
     for cat, entries in REGISTRY.items()
     for syn, desc, perm, prem in entries
 ]
 
+# ── Category display metadata ─────────────────────────────────────────────────
 CAT_META: dict[str, tuple[str, str, str]] = {
+    # key: (label, emoji, short description)
     "fun":      ("Fun",          "🎉", "Ship, 8ball, dice, roast, praise"),
     "roleplay": ("Roleplay",     "🫂", "Hug, pat, slap, kiss, bonk, cuddle..."),
     "utility":  ("Utility",      "🔧", "Ping, userinfo, avatar, translate, AFK"),
@@ -343,19 +327,23 @@ CAT_META: dict[str, tuple[str, str, str]] = {
     "antispam": ("Anti-Spam",    "🛡️", "Auto-detect and punish spam floods"),
     "roles":    ("Roles",        "🏷️", "Reaction roles, button roles, booster roles"),
     "tickets":  ("Tickets",      "🎫", "Multi-purpose support ticket system"),
-    "setup":      ("Server Setup", "⚙️",  "Welcome, bye, logs, automod, counters"),
-    "admin":      ("Admin",        "🔑",  "Settings, prefix, announce, giveaways, embeds"),
-    "premium":    ("Premium",      "✨",  "Call, VoiceMaster, bump reminder, colors"),
-    "economy":    ("Economy",      "💰",  "Balance, daily, work, slots, rob, trade"),
-    "invest":     ("Invest",       "📈",  "Stock market, buy/sell, portfolio, P&L"),
-    "games":      ("Games",        "🎮",  "Number guess, counting, word guess (Hangman)"),
-    "extraperm":  ("Extra Perms",  "🔑",  "Gif, React, Media, Ext, Speak, Stream roles"),
-    "levelroles": ("Level Roles",  "🎖",  "Auto level roles Lvl 1–100, extra perm roles"),
-    "owner":      ("Owner",        "👑",  "Premium mgmt, AI toggle, server tools"),
-    "tracker":    ("Tracker",      "📊",  "Invite tracker, invite logs, message counter"),
+    "setup":    ("Server Setup", "⚙️", "Welcome, bye, logs, automod, counters"),
+    "admin":    ("Admin",        "🔑", "Settings, prefix, announce, giveaways, embeds"),
+    "premium":  ("Premium",      "✨", "Call, VoiceMaster, bump reminder, colors"),
+    "economy":  ("Economy",      "💰", "Balance, daily, work, slots, rob, trade"),
+    "invest":   ("Invest",       "📈", "Stock market, buy/sell, portfolio, P&L"),
+    "games":    ("Games",        "🎮", "Number guess, counting, word guess (Hangman)"),
+    "owner":    ("Owner",        "👑", "Premium mgmt, AI toggle, server tools"),
+    "tracker":  ("Tracker",      "📊", "Invite tracker, invite logs, message counter"),
 }
 
+# Ordered list of all category keys (used for pagination prev/next)
 CAT_ORDER = list(CAT_META.keys())
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
                       is_prem: bool, color: int) -> discord.Embed:
@@ -374,6 +362,7 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
 
+    # Show all accessible categories in a compact grid
     lines = []
     for key, (label, emoji, desc) in CAT_META.items():
         entries    = REGISTRY[key]
@@ -386,6 +375,7 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
             continue
         lines.append(f"{emoji} **{label}** — {desc} *({len(accessible)})*")
 
+    # Split into two columns via embed fields
     half = (len(lines) + 1) // 2
     embed.add_field(name="Categories", value="\n".join(lines[:half]),  inline=True)
     embed.add_field(name="\u200b",     value="\n".join(lines[half:]),  inline=True)
@@ -395,6 +385,7 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
     else:
         embed.set_footer(text="Happy Premium unlocks AI chat, VoiceMaster, global call & more")
     return embed
+
 
 def _build_category_embed(cat: str, pfx: str, user_level: str,
                            is_prem: bool, page: int, per_page: int) -> tuple[discord.Embed, int]:
@@ -463,6 +454,7 @@ def _build_category_embed(cat: str, pfx: str, user_level: str,
 
     return embed, total_pages
 
+
 def _build_search_embed(query: str, pfx: str, user_level: str,
                         is_prem: bool) -> discord.Embed:
     """Build a search results embed."""
@@ -499,6 +491,11 @@ def _build_search_embed(query: str, pfx: str, user_level: str,
     embed.set_footer(text=f"Found {len(results)} result(s)")
     return embed
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PAGINATED HELP VIEW
+# ══════════════════════════════════════════════════════════════════════════════
+
 class HelpView(discord.ui.View):
     """
     Interactive help dashboard.
@@ -506,7 +503,7 @@ class HelpView(discord.ui.View):
     Only the user who triggered ,help can interact with the buttons/dropdown.
     """
 
-    PER_PAGE = 8
+    PER_PAGE = 8   # commands per category page
 
     def __init__(self, bot: discord.Client, author_id: int, pfx: str,
                  user_level: str, is_prem: bool, start_cat: Optional[str] = None):
@@ -518,17 +515,22 @@ class HelpView(discord.ui.View):
         self.is_prem    = is_prem
         self.color      = PERM_COLORS[user_level]
 
+        # State
         self.current_cat: Optional[str] = start_cat
         self.cat_page: int = 0
 
         self._rebuild_components()
 
+    # ── Component factory ────────────────────────────────────────────────────
+
     def _rebuild_components(self):
         """Clear and re-add all components based on current state."""
         self.clear_items()
 
+        # ── Row 0: Category dropdown ────────────────────────────────────────
         self.add_item(CategorySelect(self.user_level, self.is_prem, self.current_cat))
 
+        # ── Row 1: Navigation buttons ───────────────────────────────────────
         on_home = self.current_cat is None
 
         home_btn = discord.ui.Button(
@@ -574,12 +576,14 @@ class HelpView(discord.ui.View):
         if self.current_cat is None:
             return True
         idx = CAT_ORDER.index(self.current_cat)
+        # Can go to prev page within category OR prev category
         if self.cat_page > 0:
             return False
         return idx == 0
 
     def _next_disabled(self) -> bool:
         if self.current_cat is None:
+            # Can always go to first category
             return len(CAT_ORDER) == 0
         idx = CAT_ORDER.index(self.current_cat)
         _, total = _build_category_embed(
@@ -589,6 +593,8 @@ class HelpView(discord.ui.View):
         if self.cat_page < total - 1:
             return False
         return idx == len(CAT_ORDER) - 1
+
+    # ── Build current embed ──────────────────────────────────────────────────
 
     def build_embed(self) -> discord.Embed:
         if self.current_cat is None:
@@ -600,6 +606,8 @@ class HelpView(discord.ui.View):
             self.is_prem, self.cat_page, self.PER_PAGE
         )
         return embed
+
+    # ── Interaction guard ────────────────────────────────────────────────────
 
     async def _guard(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.author_id:
@@ -613,6 +621,8 @@ class HelpView(discord.ui.View):
     async def _update(self, interaction: discord.Interaction):
         self._rebuild_components()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    # ── Button callbacks ────────────────────────────────────────────────────
 
     async def _home_callback(self, interaction: discord.Interaction):
         if not await self._guard(interaction):
@@ -632,6 +642,7 @@ class HelpView(discord.ui.View):
             idx = CAT_ORDER.index(self.current_cat)
             if idx > 0:
                 self.current_cat = CAT_ORDER[idx - 1]
+                # Jump to last page of previous category
                 _, total = _build_category_embed(
                     self.current_cat, self.pfx, self.user_level,
                     self.is_prem, 0, self.PER_PAGE
@@ -673,6 +684,7 @@ class HelpView(discord.ui.View):
         for item in self.children:
             item.disabled = True
 
+
 class CategorySelect(discord.ui.Select):
     """Dropdown to jump directly to a category."""
 
@@ -700,7 +712,7 @@ class CategorySelect(discord.ui.Select):
 
         super().__init__(
             placeholder="📂 Jump to a category...",
-            options=options[:25],
+            options=options[:25],   # Discord limit
             row=0
         )
         self.user_level = user_level
@@ -721,6 +733,11 @@ class CategorySelect(discord.ui.Select):
         view._rebuild_components()
         await interaction.response.edit_message(embed=view.build_embed(), view=view)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  COG
+# ══════════════════════════════════════════════════════════════════════════════
+
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -735,10 +752,12 @@ class Help(commands.Cog):
     async def _get_context(self, ctx_or_interaction):
         """Returns (pfx, user_level, is_prem) for both ctx and Interaction."""
         if hasattr(ctx_or_interaction, "author"):
+            # commands.Context
             member = ctx_or_interaction.author
             guild  = ctx_or_interaction.guild
             pfx    = await self._get_prefix(ctx_or_interaction)
         else:
+            # discord.Interaction
             member = ctx_or_interaction.user
             guild  = ctx_or_interaction.guild
             try:
@@ -755,6 +774,10 @@ class Help(commands.Cog):
         )
         return pfx, user_level, is_prem
 
+    # ══════════════════════════════════════════════════════════════════════════
+    #  PREFIX HELP COMMAND
+    # ══════════════════════════════════════════════════════════════════════════
+
     @commands.command(aliases=["h", "commands", "cmds"])
     async def help(self, ctx, *, query: str = None):
         """
@@ -765,11 +788,13 @@ class Help(commands.Cog):
         """
         pfx, user_level, is_prem = await self._get_context(ctx)
 
+        # ── Search ────────────────────────────────────────────────────────────
         if query and query.lower() not in REGISTRY:
             embed = _build_search_embed(query.lower(), pfx, user_level, is_prem)
             await ctx.reply(embed=embed)
             return
 
+        # ── Paginated dashboard ───────────────────────────────────────────────
         start_cat = query.lower() if query and query.lower() in REGISTRY else None
         view      = HelpView(
             bot=self.bot,
@@ -780,6 +805,10 @@ class Help(commands.Cog):
             start_cat=start_cat
         )
         await ctx.reply(embed=view.build_embed(), view=view)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SLASH HELP COMMAND
+    # ══════════════════════════════════════════════════════════════════════════
 
     @app_commands.command(name="help", description="View Happy's command list")
     @app_commands.describe(
@@ -803,8 +832,6 @@ class Help(commands.Cog):
         app_commands.Choice(name="📈 Invest",       value="invest"),
         app_commands.Choice(name="🎮 Games",        value="games"),
         app_commands.Choice(name="📊 Tracker",      value="tracker"),
-        app_commands.Choice(name="🔑 Extra Perms",  value="extraperm"),
-        app_commands.Choice(name="🎖 Level Roles",  value="levelroles"),
     ])
     async def slash_help(
         self,
@@ -815,11 +842,13 @@ class Help(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         pfx, user_level, is_prem = await self._get_context(interaction)
 
+        # ── Search ────────────────────────────────────────────────────────────
         if search:
             embed = _build_search_embed(search.lower(), pfx, user_level, is_prem)
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
+        # ── Paginated dashboard (ephemeral for slash) ─────────────────────────
         start_cat = category if category and category in REGISTRY else None
         view      = HelpView(
             bot=self.bot,
@@ -830,6 +859,7 @@ class Help(commands.Cog):
             start_cat=start_cat
         )
         await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(Help(bot))

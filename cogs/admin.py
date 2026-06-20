@@ -5,7 +5,7 @@ cogs/admin.py — Settings dashboard, prefix, announce, giveaway, server config,
 """
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 import asyncio, random, re
 from datetime import datetime, timedelta, timezone
@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from utils.db import (
     settings_col, personal_prefix_col, premium_col,
     logs_col, bump_col, tickets_col, disabled_cmds_col,
-    voicemaster_col, counters_col
+    voicemaster_col, counters_col, db
 )
 from utils.helpers import (
     BOT_OWNER_ID, ctx_owner, ctx_admin, ctx_mod, ctx_premium,
@@ -21,14 +21,32 @@ from utils.helpers import (
     update_server_data, get_server_data, log_event
 )
 
-# In-memory giveaway store
-# {msg_id: {prize, winners, channel_id, host_id, min_msgs, min_invites}}
-_active_giveaways: dict = {}
+giveaways_col = db["giveaways"]
 
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.giveaway_checker.start()
+
+    def cog_unload(self):
+        self.giveaway_checker.cancel()
+
+    @tasks.loop(seconds=20)
+    async def giveaway_checker(self):
+        await self.bot.wait_until_ready()
+        now = datetime.now(timezone.utc)
+        cursor = giveaways_col.find({"status": "active", "end_time": {"$lte": now}})
+        async for doc in cursor:
+            channel = self.bot.get_channel(int(doc["channel_id"]))
+            if not channel:
+                await giveaways_col.update_one({"_id": doc["_id"]}, {"$set": {"status": "ended"}})
+                continue
+            await self._end_giveaway(channel, int(doc["message_id"]))
+
+    @giveaway_checker.before_loop
+    async def before_giveaway_checker(self):
+        await self.bot.wait_until_ready()
 
     # ══════════════════════════════════════════════════════════════════════════
     #  SETTINGS DASHBOARD
@@ -298,9 +316,6 @@ class Admin(commands.Cog):
         Start a giveaway with optional entry conditions.
         Usage: ,giveaway <duration> <winners> <prize> [--msgs <n>] [--invites <n>]
         Duration: 30m  2h  1d  or plain minutes
-        Optional flags (anywhere after prize):
-          --msgs <n>    — entrant must have sent at least n messages in this server
-          --invites <n> — entrant must have at least n accepted invites in this server
         """
         if not duration or not prize:
             embed = discord.Embed(title="Giveaway Commands", color=0x2B2D31)
@@ -309,7 +324,7 @@ class Admin(commands.Cog):
                 value=(
                     "`,giveaway <duration> <winners> <prize>`\n"
                     "Duration: `30m` `2h` `1d` or minutes\n\n"
-                    "**Optional conditions** (add anywhere after prize):\n"
+                    "Optional conditions, add anywhere after prize:\n"
                     "`--msgs <n>` — need n messages to enter\n"
                     "`--invites <n>` — need n invites to enter\n\n"
                     "Example: `,giveaway 1h 1 Nitro --msgs 50 --invites 2`"
@@ -328,17 +343,15 @@ class Admin(commands.Cog):
         if minutes > 43200:
             return await ctx.reply("Maximum duration is 30 days.")
 
-        # ── Parse optional --msgs and --invites flags out of prize string ──
-        import re as _re
         min_msgs    = 0
         min_invites = 0
 
-        msgs_match = _re.search(r"--msgs\s+(\d+)", prize)
+        msgs_match = re.search(r"--msgs\s+(\d+)", prize)
         if msgs_match:
             min_msgs = int(msgs_match.group(1))
             prize    = prize[:msgs_match.start()] + prize[msgs_match.end():]
 
-        inv_match = _re.search(r"--invites\s+(\d+)", prize)
+        inv_match = re.search(r"--invites\s+(\d+)", prize)
         if inv_match:
             min_invites = int(inv_match.group(1))
             prize       = prize[:inv_match.start()] + prize[inv_match.end():]
@@ -350,7 +363,6 @@ class Admin(commands.Cog):
         end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         ts       = int(end_time.timestamp())
 
-        # ── Build embed description ──
         desc_lines = ["React with 🎉 to enter!", ""]
         desc_lines.append(f"Winners: **{winners}**")
         desc_lines.append(f"Ends: <t:{ts}:R> (<t:{ts}:f>)")
@@ -386,17 +398,18 @@ class Admin(commands.Cog):
         msg = await ctx.channel.send(embed=embed)
         await msg.add_reaction("🎉")
 
-        _active_giveaways[msg.id] = {
+        await giveaways_col.insert_one({
+            "message_id":  str(msg.id),
+            "channel_id":  str(ctx.channel.id),
+            "guild_id":    str(ctx.guild.id),
+            "host_id":     str(ctx.author.id),
             "prize":       prize,
             "winners":     winners,
-            "channel_id":  ctx.channel.id,
-            "host_id":     ctx.author.id,
             "min_msgs":    min_msgs,
             "min_invites": min_invites,
-        }
-
-        await asyncio.sleep(minutes * 60)
-        await self._end_giveaway(ctx.channel, msg.id)
+            "end_time":    end_time,
+            "status":      "active",
+        })
 
     @giveaway.command(name="end")
     @ctx_mod()
@@ -404,12 +417,12 @@ class Admin(commands.Cog):
         """End a running giveaway early."""
         if not message_id:
             return await ctx.reply("Usage: `,giveaway end <message_id>`")
-        try:
-            ch = ctx.channel
-            await self._end_giveaway(ch, message_id, force=True)
-            await ctx.reply("Giveaway ended.", delete_after=4)
-        except discord.NotFound:
-            await ctx.reply("Message not found in this channel.")
+        doc = await giveaways_col.find_one({"message_id": str(message_id), "status": "active"})
+        if not doc:
+            return await ctx.reply("No active giveaway found with that message ID.")
+        channel = self.bot.get_channel(int(doc["channel_id"])) or ctx.channel
+        await self._end_giveaway(channel, message_id)
+        await ctx.reply("Giveaway ended.", delete_after=4)
 
     @giveaway.command(name="reroll")
     @ctx_mod()
@@ -417,144 +430,163 @@ class Admin(commands.Cog):
         """Reroll winners for an ended giveaway."""
         if not message_id:
             return await ctx.reply("Usage: `,giveaway reroll <message_id>`")
-        data = _active_giveaways.get(message_id)
+        data = await giveaways_col.find_one({"message_id": str(message_id)})
         if not data:
-            return await ctx.reply("Giveaway not found in this session's memory.")
+            return await ctx.reply("Giveaway not found in the database.")
         try:
             msg      = await ctx.channel.fetch_message(message_id)
             reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
             if not reaction:
                 return await ctx.reply("No 🎉 reactions found on that message.")
-            users  = [u async for u in reaction.users() if not u.bot]
+            users = [u async for u in reaction.users() if not u.bot]
             if not users:
                 return await ctx.reply("No valid entries to reroll from.")
-            chosen   = random.sample(users, min(data["winners"], len(users)))
+
+            eligible = await self._filter_eligible(ctx.guild, users, data.get("min_msgs", 0), data.get("min_invites", 0))
+            if not eligible:
+                return await ctx.reply("No entrants currently meet the entry requirements.")
+
+            chosen   = random.sample(eligible, min(data["winners"], len(eligible)))
             mentions = ", ".join(w.mention for w in chosen)
             await ctx.reply(embed=discord.Embed(
                 title="Giveaway Rerolled",
                 description=f"New winner(s) for **{data['prize']}**: {mentions}",
                 color=0xffd700
             ))
+        except discord.NotFound:
+            await ctx.reply("Message not found in this channel.")
         except Exception as e:
             await ctx.reply(f"Reroll error: {e}")
 
-    async def _end_giveaway(self, channel, msg_id: int, force: bool = False):
-        data = _active_giveaways.get(msg_id)
+    async def _filter_eligible(self, guild, users, min_msgs, min_invites):
+        if not min_msgs and not min_invites:
+            return list(users)
+        msg_col = db["message_counts"]
+        inv_col = db["invite_tracker"]
+        eligible = []
+        for user in users:
+            ok = True
+            if min_msgs:
+                m = await msg_col.find_one({"guild_id": str(guild.id), "user_id": str(user.id)})
+                if (m.get("count", 0) if m else 0) < min_msgs:
+                    ok = False
+            if ok and min_invites:
+                docs = await inv_col.find({"guild_id": str(guild.id), "inviter_id": str(user.id)}).to_list(100)
+                if sum(d.get("uses", 0) for d in docs) < min_invites:
+                    ok = False
+            if ok:
+                eligible.append(user)
+        return eligible
+
+    async def _end_giveaway(self, channel, msg_id: int):
+        data = await giveaways_col.find_one({"message_id": str(msg_id), "status": "active"})
         if not data:
             return
+
+        await giveaways_col.update_one({"message_id": str(msg_id)}, {"$set": {"status": "ended"}})
+
         try:
-            msg      = await channel.fetch_message(msg_id)
-            reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
-            if not reaction:
-                await channel.send(embed=discord.Embed(
-                    description=f"Giveaway for **{data['prize']}** ended — no entries.",
-                    color=0x2B2D31
-                ))
-                return
+            msg = await channel.fetch_message(msg_id)
+        except (discord.NotFound, discord.Forbidden):
+            return
 
-            reactors = [u async for u in reaction.users() if not u.bot]
-            if not reactors:
-                await channel.send(embed=discord.Embed(
-                    description=f"Not enough entries for **{data['prize']}**.",
-                    color=0x2B2D31
-                ))
-                return
-
-            min_msgs    = data.get("min_msgs",    0)
-            min_invites = data.get("min_invites", 0)
-            eligible    = []
-            disqualified = []
-
-            if min_msgs or min_invites:
-                from utils.db import db as _db
-                msg_col = _db["message_counts"]
-                inv_col = _db["invite_tracker"]
-                guild   = channel.guild
-
-                for user in reactors:
-                    fail_reasons = []
-
-                    if min_msgs:
-                        msg_doc   = await msg_col.find_one({"guild_id": str(guild.id), "user_id": str(user.id)})
-                        user_msgs = msg_doc.get("count", 0) if msg_doc else 0
-                        if user_msgs < min_msgs:
-                            fail_reasons.append(f"{user_msgs}/{min_msgs} msgs")
-
-                    if min_invites:
-                        inv_cursor = inv_col.find({"guild_id": str(guild.id), "inviter_id": str(user.id)})
-                        inv_docs   = await inv_cursor.to_list(100)
-                        user_invs  = sum(d.get("uses", 0) for d in inv_docs)
-                        if user_invs < min_invites:
-                            fail_reasons.append(f"{user_invs}/{min_invites} invites")
-
-                    if fail_reasons:
-                        disqualified.append((user, fail_reasons))
-                    else:
-                        eligible.append(user)
-            else:
-                eligible = reactors
-
-            if not eligible:
-                # Build a clear "no eligible entrants" message
-                cond_parts = []
-                if min_msgs:
-                    cond_parts.append(f"{min_msgs}+ messages")
-                if min_invites:
-                    cond_parts.append(f"{min_invites}+ invites")
-                no_win_embed = discord.Embed(
-                    title="Giveaway Ended — No Eligible Entrants",
-                    description=(
-                        f"Prize: **{data['prize']}**\n\n"
-                        f"No one met the requirements: {' and '.join(cond_parts)}\n"
-                        f"Total reactors: {len(reactors)} | Eligible: 0"
-                    ),
-                    color=0xED4245
-                )
-                no_win_embed.set_footer(text="Use ,giveaway reroll <message_id> to reroll after conditions are met")
-                await msg.edit(embed=no_win_embed)
-                await channel.send(embed=no_win_embed)
-                return
-
-            chosen   = random.sample(eligible, min(data["winners"], len(eligible)))
-            mentions = ", ".join(w.mention for w in chosen)
-
-            result_lines = [f"Prize: **{data['prize']}**", f"Winner(s): {mentions}"]
-            if min_msgs or min_invites:
-                cond_parts = []
-                if min_msgs:
-                    cond_parts.append(f"{min_msgs}+ msgs")
-                if min_invites:
-                    cond_parts.append(f"{min_invites}+ invites")
-                result_lines.append(f"Conditions: {', '.join(cond_parts)}")
-                result_lines.append(f"Eligible entrants: {len(eligible)}/{len(reactors)}")
-
-            new_embed = discord.Embed(
+        reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
+        if not reaction:
+            no_entry = discord.Embed(
                 title="Giveaway Ended",
-                description="\n".join(result_lines),
+                description=f"Prize: **{data['prize']}**\n\nNo one entered this giveaway.",
+                color=0xED4245
+            )
+            try:
+                await msg.edit(embed=no_entry)
+            except:
+                pass
+            await channel.send(embed=no_entry)
+            return
+
+        reactors = [u async for u in reaction.users() if not u.bot]
+        if not reactors:
+            no_entry = discord.Embed(
+                title="Giveaway Ended",
+                description=f"Prize: **{data['prize']}**\n\nNo valid entries.",
+                color=0xED4245
+            )
+            try:
+                await msg.edit(embed=no_entry)
+            except:
+                pass
+            await channel.send(embed=no_entry)
+            return
+
+        min_msgs    = data.get("min_msgs", 0)
+        min_invites = data.get("min_invites", 0)
+        eligible    = await self._filter_eligible(channel.guild, reactors, min_msgs, min_invites)
+        disqualified_count = len(reactors) - len(eligible)
+
+        if not eligible:
+            cond_parts = []
+            if min_msgs:
+                cond_parts.append(f"{min_msgs}+ messages")
+            if min_invites:
+                cond_parts.append(f"{min_invites}+ invites")
+            no_win_embed = discord.Embed(
+                title="Giveaway Ended — No Eligible Entrants",
+                description=(
+                    f"Prize: **{data['prize']}**\n\n"
+                    f"No one met the requirements: {' and '.join(cond_parts)}\n"
+                    f"Total reactors: {len(reactors)}  •  Eligible: 0"
+                ),
+                color=0xED4245
+            )
+            no_win_embed.set_footer(text="Use ,giveaway reroll <message_id> to reroll once requirements are met")
+            try:
+                await msg.edit(embed=no_win_embed)
+            except:
+                pass
+            await channel.send(embed=no_win_embed)
+            return
+
+        chosen   = random.sample(eligible, min(data["winners"], len(eligible)))
+        mentions = ", ".join(w.mention for w in chosen)
+
+        result_lines = [f"Prize: **{data['prize']}**", f"Winner(s): {mentions}"]
+        if min_msgs or min_invites:
+            cond_parts = []
+            if min_msgs:
+                cond_parts.append(f"{min_msgs}+ msgs")
+            if min_invites:
+                cond_parts.append(f"{min_invites}+ invites")
+            result_lines.append(f"Conditions: {', '.join(cond_parts)}")
+            result_lines.append(f"Eligible entrants: {len(eligible)}/{len(reactors)}")
+
+        new_embed = discord.Embed(
+            title="Giveaway Ended",
+            description="\n".join(result_lines),
+            color=discord.Color.gold()
+        )
+        new_embed.set_footer(text="Use ,giveaway reroll <message_id> to reroll")
+
+        try:
+            await msg.edit(embed=new_embed)
+        except:
+            pass
+
+        await channel.send(
+            content=mentions,
+            embed=discord.Embed(
+                description=f"Congratulations {mentions}! You won **{data['prize']}**!",
                 color=discord.Color.gold()
             )
-            new_embed.set_footer(text="Use ,giveaway reroll <message_id> to reroll")
-            await msg.edit(embed=new_embed)
-            await channel.send(f"Congratulations {mentions}! You won **{data['prize']}**!")
+        )
 
-            # If some were disqualified, tell the mod quietly
-            if disqualified:
-                dq_lines = [f"{u.mention} — {', '.join(r)}" for u, r in disqualified[:10]]
-                if len(disqualified) > 10:
-                    dq_lines.append(f"...and {len(disqualified) - 10} more")
-                dq_embed = discord.Embed(
-                    title="Disqualified Entrants",
-                    description=(
-                        "These members reacted but did not meet the requirements:\n"
-                        + "\n".join(dq_lines)
-                    ),
+        if disqualified_count:
+            await channel.send(
+                embed=discord.Embed(
+                    description=f"{disqualified_count} entrant(s) did not meet the requirements and were excluded.",
                     color=0x2B2D31
-                )
-                dq_embed.set_footer(text="This message is informational only")
-                await channel.send(embed=dq_embed, delete_after=60)
-
-        except Exception as e:
-            print(f"[Giveaway] _end_giveaway: {e}")
+                ),
+                delete_after=30
+            )
 
     @staticmethod
     def _parse_duration(s: str):

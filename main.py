@@ -1,8 +1,3 @@
-"""
-Happy Bot — Premium Edition
-Entry point: loads all cogs and starts the bot.
-"""
-
 import discord
 from discord.ext import commands
 from flask import Flask
@@ -14,7 +9,6 @@ from utils.helpers import get_prefix
 
 load_dotenv()
 
-# ── Flask keep-alive (required for Render free tier) ─────────────────────────
 app = Flask('')
 
 @app.route('/')
@@ -25,7 +19,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# ── Bot setup ─────────────────────────────────────────────────────────────────
 intents = discord.Intents.all()
 
 bot = commands.Bot(
@@ -34,12 +27,10 @@ bot = commands.Bot(
     help_command=None,
 )
 
-# ── Suppress Bot's default on_message ────────────────────────────────────────
 @bot.event
 async def on_message(message):
-    pass  # Core cog handles all message logic including process_commands
+    pass
 
-# ── Cog list ──────────────────────────────────────────────────────────────────
 COGS = [
     "cogs.core",
     "cogs.moderation",
@@ -58,7 +49,9 @@ COGS = [
     "cogs.economy",
     "cogs.invest",
     "cogs.levelroles",
-    "cogs.tracker",      # invite tracker + message counter
+    "cogs.tracker",
+    "cogs.extraperm",
+    "cogs.aliases",
 ]
 
 async def main():

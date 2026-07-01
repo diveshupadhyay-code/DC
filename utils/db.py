@@ -1,8 +1,3 @@
-"""
-utils/db.py — All MongoDB collections in one place.
-Import from here everywhere else so the client is created once.
-"""
-
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -16,7 +11,6 @@ if not MONGO_URL:
 _cluster = AsyncIOMotorClient(MONGO_URL)
 db = _cluster["HappyBotDB"]
 
-# ── Collections ───────────────────────────────────────────────────────────────
 settings_col        = db["server_settings"]
 warns_col           = db["warnings"]
 afk_col             = db["afk_users"]
@@ -51,10 +45,10 @@ trades_col          = db["trades"]
 activity_col        = db["server_activity"]
 market_col          = db["market_stocks"]
 portfolio_col       = db["portfolios"]
-global_status_col   = db["global_status"]   # owner global status overrides
-giveaways_col       = db["giveaways"]        # persistent giveaway store, restart-safe
-
-# ── Tracker collections (invite tracker + message counter) ────────────────────
-invites_col         = db["invite_tracker"]      # {guild_id, inviter_id, code, uses, ...}
-invite_log_col      = db["invite_log_config"]   # {guild_id, channel_id}
-msg_count_col       = db["message_counts"]      # {guild_id, user_id, count}
+global_status_col   = db["global_status"]
+giveaways_col       = db["giveaways"]
+invites_col         = db["invite_tracker"]
+invite_log_col      = db["invite_log_config"]
+msg_count_col       = db["message_counts"]
+ep_config_col       = db["extraperm_config"]
+cmd_aliases_col     = db["command_aliases"]

@@ -1,8 +1,3 @@
-"""
-utils/helpers.py — Shared helpers: prefix resolver, permission checks,
-color parser, log emitter.
-"""
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -10,29 +5,29 @@ from utils.db import (
     settings_col, personal_prefix_col, premium_col, logs_col
 )
 import datetime, asyncio
+import pytz
 
 BOT_OWNER_ID = 876629015144828939
+IST = pytz.timezone("Asia/Kolkata")
 
 
-# ── Prefix resolver ───────────────────────────────────────────────────────────
 async def get_prefix(bot, message):
-    """Personal prefix → server prefix → default ','"""
     if message.author and not message.author.bot:
         personal = await personal_prefix_col.find_one({"user_id": str(message.author.id)})
         if personal and personal.get("prefix"):
-            return commands.when_mentioned_or(personal["prefix"])(bot, message)
+            return commands.when_mentioned_or(personal["prefix"], ",", "happy ")(bot, message)
 
     if not message.guild:
-        return commands.when_mentioned_or(",")(bot, message)
+        return commands.when_mentioned_or(",", "happy ")(bot, message)
 
     data = await settings_col.find_one({"_id": str(message.guild.id)})
     if data and "prefix" in data:
-        return commands.when_mentioned_or(data["prefix"])(bot, message)
+        server_prefix = data["prefix"]
+        return commands.when_mentioned_or(server_prefix, ",", "happy ")(bot, message)
 
-    return commands.when_mentioned_or(",")(bot, message)
+    return commands.when_mentioned_or(",", "happy ")(bot, message)
 
 
-# ── Premium checks ────────────────────────────────────────────────────────────
 async def is_premium_server(guild_id: int) -> bool:
     doc = await premium_col.find_one({"type": "server", "id": str(guild_id)})
     return doc is not None
@@ -42,7 +37,6 @@ async def is_premium_user(user_id: int) -> bool:
     return doc is not None
 
 async def has_premium(ctx_or_interaction) -> bool:
-    """Works for both ctx and Interaction."""
     if hasattr(ctx_or_interaction, 'author'):
         user_id  = ctx_or_interaction.author.id
         guild_id = ctx_or_interaction.guild.id if ctx_or_interaction.guild else 0
@@ -55,7 +49,6 @@ async def has_premium(ctx_or_interaction) -> bool:
     return await is_premium_user(user_id) or await is_premium_server(guild_id)
 
 
-# ── Check decorators ──────────────────────────────────────────────────────────
 def is_owner():
     async def predicate(interaction: discord.Interaction):
         if interaction.user.id != BOT_OWNER_ID:
@@ -122,7 +115,6 @@ def ctx_premium():
     return commands.check(predicate)
 
 
-# ── Color parser ──────────────────────────────────────────────────────────────
 def parse_color(color_str: str) -> discord.Color:
     try:
         return discord.Color.from_str(color_str if color_str.startswith("#") else f"#{color_str}")
@@ -130,7 +122,6 @@ def parse_color(color_str: str) -> discord.Color:
         return discord.Color(0x2B2D31)
 
 
-# ── Log emitter ───────────────────────────────────────────────────────────────
 async def log_event(bot, guild: discord.Guild, event_type: str, description: str):
     try:
         cfg = await logs_col.find_one({"guild_id": str(guild.id)})
@@ -143,14 +134,13 @@ async def log_event(bot, guild: discord.Guild, event_type: str, description: str
             title=event_type.replace("_", " ").title(),
             description=description,
             color=0x2B2D31,
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
+            timestamp=datetime.datetime.now(IST)
         )
         await channel.send(embed=embed)
     except:
         pass
 
 
-# ── Server data helpers ───────────────────────────────────────────────────────
 async def get_server_data(server_id):
     data = await settings_col.find_one({"_id": str(server_id)})
     return data or {}

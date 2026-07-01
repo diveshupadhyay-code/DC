@@ -1,34 +1,3 @@
-"""
-cogs/extraperm.py — Extra Perm Roles System (Standalone, Premium Feature)
-
-Completely separate from the level roles system.
-Admins run ONE command to create all extra perm roles in their server.
-Then they can assign/remove those roles to any member whenever they want.
-
-Extra perm roles created:
-  Gif      — embed_links + attach_files  (post GIFs via Tenor / Giphy)
-  React    — add_reactions
-  Media    — attach_files + embed_links
-  Ext      — use_external_emojis + use_external_stickers
-  Speak    — speak in voice channels
-  Stream   — stream / go live in voice
-  Thread   — create_public_threads + send_messages_in_threads
-  Mention  — mention_everyone (use carefully)
-  Nick     — change_nickname
-  Invite   — create_instant_invite
-
-Commands:
-  ,extraperm setup          — create all extra perm roles in one go
-  ,extraperm                — dashboard: list all roles + who has them
-  ,extraperm give @member <role>   — assign a perm role to a member
-  ,extraperm take @member <role>   — remove a perm role from a member
-  ,extraperm list [@member]        — see which perm roles a member has
-  ,extraperm info <rolename>       — what permissions a role grants
-  ,extraperm teardown       — delete all created extra perm roles (confirmation required)
-
-No emojis in role names.
-"""
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -38,66 +7,61 @@ from datetime import datetime, timezone
 from utils.db import db
 from utils.helpers import BOT_OWNER_ID, ctx_admin, is_premium_server
 
-# ── Collection ─────────────────────────────────────────────────────────────────
 ep_config_col = db["extraperm_config"]
-# Schema: {guild_id, roles: {name: role_id}, members: {user_id: [role_names]}}
 
-# ── Role definitions ───────────────────────────────────────────────────────────
-# name → {description, perms: {discord_perm_field: bool}, color}
 EXTRA_PERM_ROLES: dict[str, dict] = {
     "Gif": {
         "description": "Post GIFs via Tenor/Giphy (embed links + attach files)",
         "perms":       {"embed_links": True, "attach_files": True},
-        "color":       0xF97316,  # orange
+        "color":       0xF97316,
     },
     "React": {
         "description": "Add reactions to messages",
         "perms":       {"add_reactions": True},
-        "color":       0xFBBF24,  # yellow
+        "color":       0xFBBF24,
     },
     "Media": {
         "description": "Attach files and embed links in messages",
         "perms":       {"attach_files": True, "embed_links": True},
-        "color":       0x38BDF8,  # sky blue
+        "color":       0x38BDF8,
     },
     "Ext": {
         "description": "Use external emojis and stickers from other servers",
         "perms":       {"use_external_emojis": True, "use_external_stickers": True},
-        "color":       0xA78BFA,  # lavender
+        "color":       0xA78BFA,
     },
     "Speak": {
         "description": "Speak in voice channels",
         "perms":       {"speak": True},
-        "color":       0x34D399,  # mint
+        "color":       0x34D399,
     },
     "Stream": {
         "description": "Go live / screen share in voice channels",
         "perms":       {"stream": True},
-        "color":       0xE8425A,  # rose
+        "color":       0xE8425A,
     },
     "Thread": {
         "description": "Create public threads and participate in threads",
         "perms":       {"create_public_threads": True, "send_messages_in_threads": True},
-        "color":       0x64748B,  # steel
+        "color":       0x64748B,
     },
     "Mention": {
         "description": "Use @everyone and @here mentions (use carefully)",
         "perms":       {"mention_everyone": True},
-        "color":       0xDC2626,  # crimson
+        "color":       0xDC2626,
     },
     "Nick": {
         "description": "Change their own nickname",
         "perms":       {"change_nickname": True},
-        "color":       0x10B981,  # emerald
+        "color":       0x10B981,
     },
     "Invite": {
         "description": "Create invite links for the server",
         "perms":       {"create_instant_invite": True},
-        "color":       0x3B82F6,  # sapphire
+        "color":       0x3B82F6,
     },
 }
 
-# Aliases so members can type natural names
 ROLE_ALIASES: dict[str, str] = {
     "gif":     "Gif",
     "react":   "React",
@@ -121,13 +85,10 @@ ROLE_ALIASES: dict[str, str] = {
 
 
 def _resolve_name(raw: str) -> str | None:
-    """Resolve a user-typed name/alias to the canonical role name."""
     clean = raw.strip().lower()
-    # Direct match (case-insensitive)
     for name in EXTRA_PERM_ROLES:
         if name.lower() == clean:
             return name
-    # Alias match
     return ROLE_ALIASES.get(clean)
 
 
@@ -135,7 +96,6 @@ class ExtraPerm(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ── Helpers ────────────────────────────────────────────────────────────────
     async def _cfg(self, guild_id: int) -> dict:
         return await ep_config_col.find_one({"guild_id": str(guild_id)}) or {}
 
@@ -144,20 +104,14 @@ class ExtraPerm(commands.Cog):
         return guild.get_role(int(rid)) if rid else None
 
     def _all_roles_exist(self, guild: discord.Guild, cfg: dict) -> int:
-        """Return count of extra perm roles that exist in the guild."""
         return sum(
             1 for name in EXTRA_PERM_ROLES
             if self._get_role(guild, cfg, name) is not None
         )
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  DASHBOARD  ,extraperm
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.group(name="extraperm", aliases=["ep", "xperm"], invoke_without_command=True)
     @ctx_admin()
     async def extraperm(self, ctx):
-        """Extra perm roles dashboard."""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Extra Perm Roles is a **Happy Premium** feature.",
@@ -173,12 +127,10 @@ class ExtraPerm(commands.Cog):
             timestamp=datetime.now(timezone.utc)
         )
 
-        # Role status table
         role_lines = []
         for name, data in EXTRA_PERM_ROLES.items():
             role = self._get_role(ctx.guild, cfg, name)
             if role:
-                # Count members who have this role
                 count = len([m for m in ctx.guild.members if role in m.roles])
                 role_lines.append(
                     f"{role.mention} — {data['description']}"
@@ -218,18 +170,9 @@ class ExtraPerm(commands.Cog):
         embed.set_footer(text="Happy Premium — Extra Perm Roles")
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  SETUP — create all extra perm roles
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="setup")
     @ctx_admin()
     async def ep_setup(self, ctx):
-        """
-        Create all 10 extra perm roles in this server.
-        Each role is created with its specific Discord permissions already set.
-        Roles that already exist are skipped.
-        """
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Extra Perm Roles requires **Happy Premium**.",
@@ -252,7 +195,6 @@ class ExtraPerm(commands.Cog):
         failed       = []
 
         for name, data in EXTRA_PERM_ROLES.items():
-            # Already tracked in DB and still alive in guild?
             existing_rid = saved_roles.get(name)
             if existing_rid:
                 existing_role = ctx.guild.get_role(int(existing_rid))
@@ -260,14 +202,12 @@ class ExtraPerm(commands.Cog):
                     skipped.append(name)
                     continue
 
-            # Check by name in guild
             by_name = discord.utils.get(ctx.guild.roles, name=name)
             if by_name:
                 saved_roles[name] = str(by_name.id)
                 skipped.append(name)
                 continue
 
-            # Create it
             try:
                 new_role = await ctx.guild.create_role(
                     name=name,
@@ -284,7 +224,6 @@ class ExtraPerm(commands.Cog):
 
             await asyncio.sleep(0.4)
 
-        # Save to DB
         await ep_config_col.update_one(
             {"guild_id": str(ctx.guild.id)},
             {"$set": {
@@ -294,10 +233,8 @@ class ExtraPerm(commands.Cog):
             upsert=True
         )
 
-        # Reload cfg for the result embed
         cfg = await self._cfg(ctx.guild.id)
 
-        # Build result rows
         role_lines = []
         for name, data in EXTRA_PERM_ROLES.items():
             role    = self._get_role(ctx.guild, cfg, name)
@@ -341,18 +278,9 @@ class ExtraPerm(commands.Cog):
         result.set_footer(text="Happy Premium — Extra Perm Roles")
         await msg.edit(embed=result)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  GIVE — assign a perm role to a member
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="give", aliases=["add", "grant"])
     @ctx_admin()
     async def ep_give(self, ctx, member: discord.Member = None, *, role_name: str = None):
-        """
-        Assign an extra perm role to a member.
-        Usage: ,extraperm give @member Gif
-        Role names: Gif, React, Media, Ext, Speak, Stream, Thread, Mention, Nick, Invite
-        """
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply("Extra Perm Roles requires **Happy Premium**.")
 
@@ -403,17 +331,9 @@ class ExtraPerm(commands.Cog):
         embed.set_footer(text="Use ,extraperm take @member to remove it")
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  TAKE — remove a perm role from a member
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="take", aliases=["remove", "revoke"])
     @ctx_admin()
     async def ep_take(self, ctx, member: discord.Member = None, *, role_name: str = None):
-        """
-        Remove an extra perm role from a member.
-        Usage: ,extraperm take @member Gif
-        """
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply("Extra Perm Roles requires **Happy Premium**.")
 
@@ -455,16 +375,8 @@ class ExtraPerm(commands.Cog):
         embed.add_field(name="Removed by", value=ctx.author.mention, inline=True)
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  LIST — see which perm roles a member has
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="list", aliases=["check", "view"])
     async def ep_list(self, ctx, member: discord.Member = None):
-        """
-        See which extra perm roles a member has.
-        Usage: ,extraperm list @member
-        """
         member = member or ctx.author
         cfg    = await self._cfg(ctx.guild.id)
 
@@ -499,16 +411,8 @@ class ExtraPerm(commands.Cog):
         embed.set_footer(text=f"ID: {member.id}")
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  INFO — what a role grants
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="info")
     async def ep_info(self, ctx, *, role_name: str = None):
-        """
-        View what permissions a specific extra perm role grants.
-        Usage: ,extraperm info Gif
-        """
         if not role_name:
             lines = []
             for name, data in EXTRA_PERM_ROLES.items():
@@ -533,7 +437,6 @@ class ExtraPerm(commands.Cog):
         cfg  = await self._cfg(ctx.guild.id)
         role = self._get_role(ctx.guild, cfg, canonical)
 
-        # Members who have this role
         members_with = []
         if role:
             members_with = [m for m in ctx.guild.members if role in m.roles]
@@ -569,17 +472,9 @@ class ExtraPerm(commands.Cog):
         )
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  TEARDOWN — delete all created extra perm roles
-    # ══════════════════════════════════════════════════════════════════════════
-
     @extraperm.command(name="teardown", aliases=["reset", "deleteall"])
     @ctx_admin()
     async def ep_teardown(self, ctx):
-        """
-        Delete all extra perm roles created by this system.
-        Requires confirmation. This cannot be undone.
-        """
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply("Extra Perm Roles requires **Happy Premium**.")
 
@@ -631,7 +526,6 @@ class ExtraPerm(commands.Cog):
                 failed += 1
             await asyncio.sleep(0.4)
 
-        # Clear DB config
         await ep_config_col.delete_one({"guild_id": str(ctx.guild.id)})
 
         result = discord.Embed(
@@ -644,10 +538,6 @@ class ExtraPerm(commands.Cog):
             color=0x2B2D31
         )
         await msg.edit(embed=result)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  SLASH — info / give / take
-    # ══════════════════════════════════════════════════════════════════════════
 
     @app_commands.command(name="extraperm", description="View or manage extra perm roles")
     @app_commands.describe(member="Member to check (leave blank for dashboard)")

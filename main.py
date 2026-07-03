@@ -4,7 +4,6 @@ from flask import Flask
 from threading import Thread
 import os, asyncio
 from dotenv import load_dotenv
-from utils.db import settings_col
 from utils.helpers import get_prefix
 
 load_dotenv()

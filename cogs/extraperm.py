@@ -4,10 +4,8 @@ from discord import app_commands
 import asyncio
 from datetime import datetime, timezone
 
-from utils.db import db
+from utils.db import ep_config_col
 from utils.helpers import BOT_OWNER_ID, ctx_admin, is_premium_server
-
-ep_config_col = db["extraperm_config"]
 
 EXTRA_PERM_ROLES: dict[str, dict] = {
     "Gif": {
@@ -46,7 +44,7 @@ EXTRA_PERM_ROLES: dict[str, dict] = {
         "color":       0x64748B,
     },
     "Mention": {
-        "description": "Use @everyone and @here mentions (use carefully)",
+        "description": "Use @everyone and @here mentions",
         "perms":       {"mention_everyone": True},
         "color":       0xDC2626,
     },
@@ -63,24 +61,24 @@ EXTRA_PERM_ROLES: dict[str, dict] = {
 }
 
 ROLE_ALIASES: dict[str, str] = {
-    "gif":     "Gif",
-    "react":   "React",
-    "reaction":"React",
-    "media":   "Media",
-    "ext":     "Ext",
-    "external":"Ext",
-    "speak":   "Speak",
-    "voice":   "Speak",
-    "stream":  "Stream",
-    "live":    "Stream",
-    "thread":  "Thread",
-    "threads": "Thread",
-    "mention": "Mention",
-    "ping":    "Mention",
-    "nick":    "Nick",
-    "nickname":"Nick",
-    "invite":  "Invite",
-    "inv":     "Invite",
+    "gif":      "Gif",
+    "react":    "React",
+    "reaction": "React",
+    "media":    "Media",
+    "ext":      "Ext",
+    "external": "Ext",
+    "speak":    "Speak",
+    "voice":    "Speak",
+    "stream":   "Stream",
+    "live":     "Stream",
+    "thread":   "Thread",
+    "threads":  "Thread",
+    "mention":  "Mention",
+    "ping":     "Mention",
+    "nick":     "Nick",
+    "nickname": "Nick",
+    "invite":   "Invite",
+    "inv":      "Invite",
 }
 
 
@@ -104,10 +102,7 @@ class ExtraPerm(commands.Cog):
         return guild.get_role(int(rid)) if rid else None
 
     def _all_roles_exist(self, guild: discord.Guild, cfg: dict) -> int:
-        return sum(
-            1 for name in EXTRA_PERM_ROLES
-            if self._get_role(guild, cfg, name) is not None
-        )
+        return sum(1 for name in EXTRA_PERM_ROLES if self._get_role(guild, cfg, name) is not None)
 
     @commands.group(name="extraperm", aliases=["ep", "xperm"], invoke_without_command=True)
     @ctx_admin()
@@ -132,10 +127,7 @@ class ExtraPerm(commands.Cog):
             role = self._get_role(ctx.guild, cfg, name)
             if role:
                 count = len([m for m in ctx.guild.members if role in m.roles])
-                role_lines.append(
-                    f"{role.mention} — {data['description']}"
-                    f"\n  `{count}` member(s) assigned"
-                )
+                role_lines.append(f"{role.mention} — {data['description']}\n  `{count}` member(s)")
             else:
                 role_lines.append(f"`{name}` (not created) — {data['description']}")
 
@@ -155,15 +147,13 @@ class ExtraPerm(commands.Cog):
         embed.add_field(
             name="Commands",
             value=(
-                "`,extraperm setup` — create all 10 extra perm roles\n"
-                "`,extraperm give @member <role>` — assign a perm role\n"
-                "`,extraperm take @member <role>` — remove a perm role\n"
-                "`,extraperm list [@member]` — view a member's perm roles\n"
-                "`,extraperm info <rolename>` — what a role grants\n"
-                "`,extraperm teardown` — delete all created roles\n\n"
-                "Role names: `"
-                + "`, `".join(EXTRA_PERM_ROLES.keys())
-                + "`"
+                "`,extraperm setup` — create all 10 roles\n"
+                "`,extraperm give @member <role>` — assign\n"
+                "`,extraperm take @member <role>` — remove\n"
+                "`,extraperm list [@member]` — view member's roles\n"
+                "`,extraperm info [rolename]` — role details\n"
+                "`,extraperm teardown` — delete all roles\n\n"
+                "Roles: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
             ),
             inline=False
         )
@@ -184,23 +174,21 @@ class ExtraPerm(commands.Cog):
 
         msg = await ctx.reply(embed=discord.Embed(
             title="Extra Perm Roles — Setup",
-            description="Creating extra perm roles...",
+            description="Creating roles...",
             color=0xF0C040
         ))
 
-        cfg          = await self._cfg(ctx.guild.id)
-        saved_roles  = dict(cfg.get("roles", {}))
-        created      = []
-        skipped      = []
-        failed       = []
+        cfg         = await self._cfg(ctx.guild.id)
+        saved_roles = dict(cfg.get("roles", {}))
+        created     = []
+        skipped     = []
+        failed      = []
 
         for name, data in EXTRA_PERM_ROLES.items():
             existing_rid = saved_roles.get(name)
-            if existing_rid:
-                existing_role = ctx.guild.get_role(int(existing_rid))
-                if existing_role:
-                    skipped.append(name)
-                    continue
+            if existing_rid and ctx.guild.get_role(int(existing_rid)):
+                skipped.append(name)
+                continue
 
             by_name = discord.utils.get(ctx.guild.roles, name=name)
             if by_name:
@@ -226,24 +214,18 @@ class ExtraPerm(commands.Cog):
 
         await ep_config_col.update_one(
             {"guild_id": str(ctx.guild.id)},
-            {"$set": {
-                "guild_id": str(ctx.guild.id),
-                "roles":    saved_roles,
-            }},
+            {"$set": {"guild_id": str(ctx.guild.id), "roles": saved_roles}},
             upsert=True
         )
 
         cfg = await self._cfg(ctx.guild.id)
-
         role_lines = []
         for name, data in EXTRA_PERM_ROLES.items():
-            role    = self._get_role(ctx.guild, cfg, name)
-            status  = "created" if name in created else ("existed" if name in skipped else "FAILED")
-            perm_str = ", ".join(f"`{k}`" for k in data["perms"])
+            role   = self._get_role(ctx.guild, cfg, name)
+            status = "created" if name in created else ("existed" if name in skipped else "FAILED")
             role_lines.append(
-                f"{role.mention if role else f'`{name}`'} [{status}]\n"
-                f"  Perms: {perm_str}\n"
-                f"  {data['description']}"
+                f"{role.mention if role else f'`{name}`'} [{status}] — "
+                + ", ".join(f"`{k}`" for k in data["perms"])
             )
 
         result = discord.Embed(
@@ -254,25 +236,15 @@ class ExtraPerm(commands.Cog):
         result.add_field(
             name="Summary",
             value=(
-                f"Created: **{len(created)}**\n"
-                f"Already existed: **{len(skipped)}**"
-                + (f"\nFailed: **{len(failed)}**" if failed else "")
+                f"Created: **{len(created)}**  ·  Existed: **{len(skipped)}**"
+                + (f"  ·  Failed: **{len(failed)}**" if failed else "")
             ),
             inline=False
         )
-        result.add_field(
-            name="Roles",
-            value="\n\n".join(role_lines),
-            inline=False
-        )
+        result.add_field(name="Roles", value="\n".join(role_lines), inline=False)
         result.add_field(
             name="Next Steps",
-            value=(
-                "`,extraperm give @member Gif` — give Gif role to a member\n"
-                "`,extraperm give @member React` — give React role\n"
-                "`,extraperm list @member` — see a member's perm roles\n"
-                "`,extraperm` — open full dashboard"
-            ),
+            value="`,extraperm give @member <role>` to assign  ·  `,extraperm` for dashboard",
             inline=False
         )
         result.set_footer(text="Happy Premium — Extra Perm Roles")
@@ -287,7 +259,7 @@ class ExtraPerm(commands.Cog):
         if not member or not role_name:
             return await ctx.reply(
                 "Usage: `,extraperm give @member <rolename>`\n"
-                "Role names: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
+                "Roles: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
             )
 
         canonical = _resolve_name(role_name)
@@ -300,18 +272,13 @@ class ExtraPerm(commands.Cog):
         cfg  = await self._cfg(ctx.guild.id)
         role = self._get_role(ctx.guild, cfg, canonical)
         if not role:
-            return await ctx.reply(
-                f"The `{canonical}` role hasn't been created yet.\n"
-                "Run `,extraperm setup` first."
-            )
+            return await ctx.reply(f"The `{canonical}` role hasn't been created yet. Run `,extraperm setup` first.")
 
         if ctx.guild.me.top_role <= role:
             return await ctx.reply("My role is below that role. Move Happy higher in the role list.")
 
         if role in member.roles:
-            return await ctx.reply(
-                f"**{member.display_name}** already has the **{canonical}** role."
-            )
+            return await ctx.reply(f"**{member.display_name}** already has the **{canonical}** role.")
 
         await member.add_roles(role, reason=f"ExtraPerm: granted by {ctx.author}")
 
@@ -320,14 +287,10 @@ class ExtraPerm(commands.Cog):
             color=discord.Color(EXTRA_PERM_ROLES[canonical]["color"])
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="Member",      value=member.mention,                                inline=True)
-        embed.add_field(name="Role",        value=role.mention,                                  inline=True)
-        embed.add_field(name="Granted by",  value=ctx.author.mention,                           inline=True)
-        embed.add_field(
-            name="What this unlocks",
-            value=EXTRA_PERM_ROLES[canonical]["description"],
-            inline=False
-        )
+        embed.add_field(name="Member",         value=member.mention,                              inline=True)
+        embed.add_field(name="Role",           value=role.mention,                                inline=True)
+        embed.add_field(name="Granted by",     value=ctx.author.mention,                         inline=True)
+        embed.add_field(name="Unlocks",        value=EXTRA_PERM_ROLES[canonical]["description"],  inline=False)
         embed.set_footer(text="Use ,extraperm take @member to remove it")
         await ctx.reply(embed=embed)
 
@@ -340,38 +303,29 @@ class ExtraPerm(commands.Cog):
         if not member or not role_name:
             return await ctx.reply(
                 "Usage: `,extraperm take @member <rolename>`\n"
-                "Role names: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
+                "Roles: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
             )
 
         canonical = _resolve_name(role_name)
         if not canonical:
             return await ctx.reply(
-                f"Unknown role `{role_name}`.\n"
-                "Available: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
+                f"Unknown role `{role_name}`.\nAvailable: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
             )
 
         cfg  = await self._cfg(ctx.guild.id)
         role = self._get_role(ctx.guild, cfg, canonical)
         if not role:
-            return await ctx.reply(
-                f"The `{canonical}` role doesn't exist in this server.\n"
-                "Run `,extraperm setup` first."
-            )
+            return await ctx.reply(f"The `{canonical}` role doesn't exist. Run `,extraperm setup` first.")
 
         if role not in member.roles:
-            return await ctx.reply(
-                f"**{member.display_name}** doesn't have the **{canonical}** role."
-            )
+            return await ctx.reply(f"**{member.display_name}** doesn't have the **{canonical}** role.")
 
         await member.remove_roles(role, reason=f"ExtraPerm: removed by {ctx.author}")
 
-        embed = discord.Embed(
-            title="Extra Perm Role Removed",
-            color=0x2B2D31
-        )
+        embed = discord.Embed(title="Extra Perm Role Removed", color=0x2B2D31)
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="Member",     value=member.mention,   inline=True)
-        embed.add_field(name="Role",       value=role.mention,     inline=True)
+        embed.add_field(name="Member",     value=member.mention,     inline=True)
+        embed.add_field(name="Role",       value=role.mention,       inline=True)
         embed.add_field(name="Removed by", value=ctx.author.mention, inline=True)
         await ctx.reply(embed=embed)
 
@@ -396,7 +350,6 @@ class ExtraPerm(commands.Cog):
             color=0xF0C040 if has_roles else 0x2B2D31
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-
         embed.add_field(
             name=f"Has ({len(has_roles)})",
             value="\n".join(has_roles) if has_roles else "None",
@@ -416,30 +369,29 @@ class ExtraPerm(commands.Cog):
         if not role_name:
             lines = []
             for name, data in EXTRA_PERM_ROLES.items():
-                perm_str = ", ".join(f"`{k}`" for k in data["perms"])
-                lines.append(f"**{name}** — {data['description']}\n  Perms: {perm_str}")
+                lines.append(
+                    f"**{name}** — {data['description']}\n"
+                    f"  Perms: " + ", ".join(f"`{k}`" for k in data["perms"])
+                )
             embed = discord.Embed(
                 title="Extra Perm Roles — All Roles",
                 description="\n\n".join(lines),
                 color=0xF0C040
             )
-            embed.set_footer(text="Use ,extraperm info <rolename> for detail on one role")
+            embed.set_footer(text="Use ,extraperm info <rolename> for details on one role")
             return await ctx.reply(embed=embed)
 
         canonical = _resolve_name(role_name)
         if not canonical:
             return await ctx.reply(
-                f"Unknown role `{role_name}`.\n"
-                "Available: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
+                f"Unknown role `{role_name}`.\nAvailable: `" + "`, `".join(EXTRA_PERM_ROLES.keys()) + "`"
             )
 
         data = EXTRA_PERM_ROLES[canonical]
         cfg  = await self._cfg(ctx.guild.id)
         role = self._get_role(ctx.guild, cfg, canonical)
 
-        members_with = []
-        if role:
-            members_with = [m for m in ctx.guild.members if role in m.roles]
+        members_with = [m for m in ctx.guild.members if role in m.roles] if role else []
 
         embed = discord.Embed(
             title=f"Extra Perm Role — {canonical}",
@@ -447,28 +399,23 @@ class ExtraPerm(commands.Cog):
             color=discord.Color(data["color"])
         )
         embed.add_field(
-            name="Discord Permissions",
+            name="Permissions",
             value="\n".join(f"`{k}` = `{v}`" for k, v in data["perms"].items()),
             inline=False
         )
         embed.add_field(
             name="Role in Server",
-            value=role.mention if role else "Not created. Run `,extraperm setup`.",
+            value=role.mention if role else "Not created — run `,extraperm setup`",
             inline=True
         )
-        embed.add_field(
-            name="Members Assigned",
-            value=str(len(members_with)),
-            inline=True
-        )
+        embed.add_field(name="Members", value=str(len(members_with)), inline=True)
         if members_with:
             preview = ", ".join(m.display_name for m in members_with[:8])
             if len(members_with) > 8:
                 preview += f" +{len(members_with) - 8} more"
             embed.add_field(name="Who has it", value=preview, inline=False)
-
         embed.set_footer(
-            text=f"Assign: ,extraperm give @member {canonical} | Remove: ,extraperm take @member {canonical}"
+            text=f"Assign: ,extraperm give @member {canonical}  ·  Remove: ,extraperm take @member {canonical}"
         )
         await ctx.reply(embed=embed)
 
@@ -479,21 +426,19 @@ class ExtraPerm(commands.Cog):
             return await ctx.reply("Extra Perm Roles requires **Happy Premium**.")
 
         cfg = await self._cfg(ctx.guild.id)
-        roles_to_delete = []
-        for name in EXTRA_PERM_ROLES:
-            role = self._get_role(ctx.guild, cfg, name)
-            if role:
-                roles_to_delete.append((name, role))
+        roles_to_delete = [
+            (name, self._get_role(ctx.guild, cfg, name))
+            for name in EXTRA_PERM_ROLES
+            if self._get_role(ctx.guild, cfg, name)
+        ]
 
         if not roles_to_delete:
-            return await ctx.reply(
-                "No extra perm roles found in this server to delete."
-            )
+            return await ctx.reply("No extra perm roles found in this server.")
 
         confirm_embed = discord.Embed(
             title="Teardown Confirmation",
             description=(
-                f"This will permanently delete **{len(roles_to_delete)}** extra perm role(s):\n"
+                f"This will permanently delete **{len(roles_to_delete)}** role(s):\n"
                 + ", ".join(f"`{n}`" for n, _ in roles_to_delete)
                 + "\n\nType `confirm teardown` within 30 seconds to proceed."
             ),
@@ -512,9 +457,7 @@ class ExtraPerm(commands.Cog):
         if reply.content.strip().lower() != "confirm teardown":
             return await ctx.send("Teardown cancelled.")
 
-        msg     = await ctx.send(embed=discord.Embed(
-            description="Deleting extra perm roles...", color=0xED4245
-        ))
+        msg     = await ctx.send(embed=discord.Embed(description="Deleting roles...", color=0xED4245))
         deleted = 0
         failed  = 0
 
@@ -528,44 +471,36 @@ class ExtraPerm(commands.Cog):
 
         await ep_config_col.delete_one({"guild_id": str(ctx.guild.id)})
 
-        result = discord.Embed(
+        await msg.edit(embed=discord.Embed(
             title="Teardown Complete",
             description=(
                 f"Deleted **{deleted}** role(s)."
-                + (f"\nFailed to delete **{failed}** (already gone or permission issue)." if failed else "")
-                + "\n\nAll extra perm role data cleared from database."
+                + (f"\nFailed: **{failed}** (permission issue or already gone)." if failed else "")
+                + "\n\nAll extra perm data cleared from database."
             ),
             color=0x2B2D31
-        )
-        await msg.edit(embed=result)
+        ))
 
-    @app_commands.command(name="extraperm", description="View or manage extra perm roles")
-    @app_commands.describe(member="Member to check (leave blank for dashboard)")
-    async def slash_extraperm(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member = None
-    ):
+    @app_commands.command(name="extraperm", description="View extra perm roles for a member")
+    @app_commands.describe(member="Member to check (leave blank for yourself)")
+    async def slash_extraperm(self, interaction: discord.Interaction, member: discord.Member = None):
         if not await is_premium_server(interaction.guild.id):
             return await interaction.response.send_message(
                 "Extra Perm Roles requires **Happy Premium**.", ephemeral=True
             )
 
-        cfg = await self._cfg(interaction.guild.id)
+        cfg    = await self._cfg(interaction.guild.id)
         target = member or interaction.user
 
-        has_roles = []
-        for name in EXTRA_PERM_ROLES:
-            role = self._get_role(interaction.guild, cfg, name)
-            if role and role in target.roles:
-                has_roles.append(role.mention)
+        has_roles = [
+            self._get_role(interaction.guild, cfg, name).mention
+            for name in EXTRA_PERM_ROLES
+            if (r := self._get_role(interaction.guild, cfg, name)) and r in target.roles
+        ]
 
         embed = discord.Embed(
             title=f"Extra Perm Roles — {target.display_name}",
-            description=(
-                "\n".join(has_roles) if has_roles
-                else "No extra perm roles assigned."
-            ),
+            description="\n".join(has_roles) if has_roles else "No extra perm roles assigned.",
             color=0xF0C040 if has_roles else 0x2B2D31
         )
         embed.set_thumbnail(url=target.display_avatar.url)

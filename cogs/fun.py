@@ -200,7 +200,7 @@ class Fun(commands.Cog):
         random.seed()
 
         if pct < 15:    verdict, heart = "Terrible match.",             "💔"
-        elif pct < 35:  verdict, heart = "Friendzone material.",        "🫠"
+        elif pct < 35:  verdict, heart = "Friendzone material.",        "<:friendzone:1522508007789822012>"
         elif pct < 55:  verdict, heart = "There's potential.",          "💛"
         elif pct < 75:  verdict, heart = "Solid match!",                "🧡"
         elif pct < 90:  verdict, heart = "Great chemistry!",            "❤️"

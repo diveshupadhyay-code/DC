@@ -305,7 +305,7 @@ ALL_COMMANDS = [
 ]
 
 CAT_META: dict[str, tuple[str, str, str]] = {
-    "fun":        ("Fun",          "🎉", "Ship, 8ball, dice, roast, praise"),
+    "fun":        ("Fun",          "<a:tada:1522638851250720969>", "Ship, 8ball, dice, roast, praise"),
     "roleplay":   ("Roleplay",     "🫂", "Hug, pat, kiss, bonk, cuddle and more"),
     "utility":    ("Utility",      "🔧", "Ping, userinfo, avatar, AFK, translate"),
     "profile":    ("Profile",      "👤", "Profile card, bio, location, birthday"),
@@ -316,13 +316,13 @@ CAT_META: dict[str, tuple[str, str, str]] = {
     "tickets":    ("Tickets",      "🎫", "Support ticket system"),
     "setup":      ("Server Setup", "⚙", "Welcome, bye, logs, automod, counters"),
     "admin":      ("Admin",        "🔑", "Prefix, giveaway, announce, embeds"),
-    "premium":    ("Premium",      "✨", "AI chat, VoiceMaster, bump reminder"),
+    "premium":    ("Premium",      "<:sparkle:1522515167995367435>", "AI chat, VoiceMaster, bump reminder"),
     "economy":    ("Economy",      "💰", "Balance, daily, work, slots, trade"),
     "invest":     ("Invest",       "📈", "Stocks, buy/sell, portfolio, P&L"),
     "games":      ("Games",        "🎮", "Number guess, counting, word guess"),
     "extraperm":  ("Extra Perms",  "🎖", "Gif, React, Media, Ext perm roles"),
     "levelroles": ("Level Roles",  "🏅", "Auto roles Lvl 1-100 with permissions"),
-    "owner":      ("Owner",        "👑", "Premium mgmt, AI toggle, server tools"),
+    "owner":      ("Owner",        "<:owner:1522644329510862848>", "Premium mgmt, AI toggle, server tools"),
     "tracker":    ("Tracker",      "📊", "Invite tracker, message counter"),
 }
 
@@ -337,7 +337,7 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
         description=(
             f"**Prefix:** `{pfx}`  •  **Slash:** `/help`\n"
             f"**Role:** {PERM_LABELS[user_level]}"
-            + ("  •  ✨ Premium" if is_prem else "") + "\n\n"
+            + ("  •  <:sparkle:1522515167995367435> Premium" if is_prem else "") + "\n\n"
             f"Use the **dropdown** to jump to a category.\n"
             f"Use **arrows** to page through all categories.\n"
             f"Type `{pfx}help <word>` to search commands."
@@ -384,7 +384,7 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
         )
     if prem_cats:
         embed.add_field(
-            name="✨ Premium",
+            name="<:sparkle:1522515167995367435> Premium",
             value="\n".join(prem_cats),
             inline=True
         )
@@ -438,7 +438,7 @@ def _build_category_embed(cat: str, pfx: str, user_level: str,
     for syn, d, perm, prem in chunk:
         badges = []
         if prem:
-            badges.append("✨")
+            badges.append("<:sparkle:1522515167995367435>")
         if perm in ("mod", "admin", "owner"):
             badges.append(PERM_BADGE[perm])
         badge_str = "  " + "  ".join(badges) if badges else ""
@@ -486,7 +486,7 @@ def _build_search_embed(query: str, pfx: str, user_level: str, is_prem: bool) ->
         can = PERM_ORDER[perm] <= PERM_ORDER[user_level] and (not prem or is_prem)
         cat_label = CAT_META[cat][0]
         if can:
-            badge = " ✨" if prem else ""
+            badge = " <:sparkle:1522515167995367435>" if prem else ""
             accessible.append(f"`{pfx}{syn}`{badge}  —  {desc}  `#{cat_label}`")
         else:
             reason = "Premium" if (prem and not is_prem) else PERM_LABELS[perm]
@@ -523,7 +523,7 @@ class HelpView(discord.ui.View):
         on_home = self.current_cat is None
 
         home_btn = discord.ui.Button(
-            label="🏠 Home",
+            label="<:home:1522637327149568100> Home",
             style=discord.ButtonStyle.secondary,
             custom_id="help_home",
             row=1,
@@ -769,7 +769,7 @@ class Help(commands.Cog):
         search="Search for a command by name or description"
     )
     @app_commands.choices(category=[
-        app_commands.Choice(name="🎉 Fun",          value="fun"),
+        app_commands.Choice(name="<a:tada:1522638851250720969> Fun",          value="fun"),
         app_commands.Choice(name="🫂 Roleplay",     value="roleplay"),
         app_commands.Choice(name="🔧 Utility",      value="utility"),
         app_commands.Choice(name="👤 Profile",      value="profile"),
@@ -780,7 +780,7 @@ class Help(commands.Cog):
         app_commands.Choice(name="🎫 Tickets",      value="tickets"),
         app_commands.Choice(name="⚙ Server Setup", value="setup"),
         app_commands.Choice(name="🔑 Admin",        value="admin"),
-        app_commands.Choice(name="✨ Premium",       value="premium"),
+        app_commands.Choice(name="<:sparkle:1522515167995367435> Premium",       value="premium"),
         app_commands.Choice(name="💰 Economy",      value="economy"),
         app_commands.Choice(name="📈 Invest",       value="invest"),
         app_commands.Choice(name="🎮 Games",        value="games"),

@@ -363,7 +363,7 @@ class Admin(commands.Cog):
         end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         ts       = int(end_time.timestamp())
 
-        desc_lines = ["React with 🎉 to enter!", ""]
+        desc_lines = ["React with <a:tada:1522638851250720969> to enter!", ""]
         desc_lines.append(f"Winners: **{winners}**")
         desc_lines.append(f"Ends: <t:{ts}:R> (<t:{ts}:f>)")
 
@@ -396,7 +396,7 @@ class Admin(commands.Cog):
             pass
 
         msg = await ctx.channel.send(embed=embed)
-        await msg.add_reaction("🎉")
+        await msg.add_reaction("<a:tada:1522638851250720969>")
 
         await giveaways_col.insert_one({
             "message_id":  str(msg.id),
@@ -435,9 +435,9 @@ class Admin(commands.Cog):
             return await ctx.reply("Giveaway not found in the database.")
         try:
             msg      = await ctx.channel.fetch_message(message_id)
-            reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
+            reaction = next((r for r in msg.reactions if str(r.emoji) == "<a:tada:1522638851250720969>"), None)
             if not reaction:
-                return await ctx.reply("No 🎉 reactions found on that message.")
+                return await ctx.reply("No <a:tada:1522638851250720969> reactions found on that message.")
             users = [u async for u in reaction.users() if not u.bot]
             if not users:
                 return await ctx.reply("No valid entries to reroll from.")
@@ -490,7 +490,7 @@ class Admin(commands.Cog):
         except (discord.NotFound, discord.Forbidden):
             return
 
-        reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
+        reaction = next((r for r in msg.reactions if str(r.emoji) == "<a:tada:1522638851250720969>"), None)
         if not reaction:
             no_entry = discord.Embed(
                 title="Giveaway Ended",

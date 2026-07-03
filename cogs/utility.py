@@ -44,7 +44,7 @@ class Utility(commands.Cog):
         lat   = round(self.bot.latency * 1000)
         color = 0x57F287 if lat < 100 else (0xFEE75C if lat < 200 else 0xED4245)
         embed = discord.Embed(
-            description=f"🏓 Pong! Latency: **{lat}ms**",
+            description=f"<a:ghosty:1522505832288354334> Pong! Latency: **{lat}ms**",
             color=color
         )
         await ctx.reply(embed=embed)
@@ -54,7 +54,7 @@ class Utility(commands.Cog):
         lat   = round(self.bot.latency * 1000)
         color = 0x57F287 if lat < 100 else (0xFEE75C if lat < 200 else 0xED4245)
         await interaction.response.send_message(
-            embed=discord.Embed(description=f"🏓 Pong! Latency: **{lat}ms**", color=color),
+            embed=discord.Embed(description=f"<a:ghosty:1522505832288354334> Pong! Latency: **{lat}ms**", color=color),
             ephemeral=True
         )
 
@@ -78,10 +78,10 @@ class Utility(commands.Cog):
 
         # Status
         status_emoji = {
-            discord.Status.online:    "🟢 Online",
-            discord.Status.idle:      "🟡 Idle",
-            discord.Status.dnd:       "🔴 Do Not Disturb",
-            discord.Status.offline:   "⚫ Offline",
+            discord.Status.online:    "<:dotgreen:1522520298539319399> Online",
+            discord.Status.idle:      "<:dotyellow:1522520275944734851> Idle",
+            discord.Status.dnd:       "<:dotred:1522520224304336927> Do Not Disturb",
+            discord.Status.offline:   "<:dotblack:1522520296450424853> Offline",
         }
         status_str = status_emoji.get(member.status, "⚫ Offline")
 
@@ -187,10 +187,10 @@ class Utility(commands.Cog):
         humans = g.member_count - bots
         online = sum(1 for m in g.members if m.status != discord.Status.offline and not m.bot)
         embed  = discord.Embed(title=f"{g.name} — Members", color=0x2B2D31)
-        embed.add_field(name="👥 Total",   value=str(g.member_count), inline=True)
-        embed.add_field(name="🧑 Humans",  value=str(humans),          inline=True)
-        embed.add_field(name="🤖 Bots",    value=str(bots),            inline=True)
-        embed.add_field(name="🟢 Online",  value=str(online),          inline=True)
+        embed.add_field(name="<:253261communitymembers:1522522379090137128> Total",   value=str(g.member_count), inline=True)
+        embed.add_field(name="<:82382member:1522522354176233594> Humans",  value=str(humans),          inline=True)
+        embed.add_field(name="<:bot:1522522753125716098> Bots",    value=str(bots),            inline=True)
+        embed.add_field(name="<:dotgreen:1522520298539319399> Online",  value=str(online),          inline=True)
         if g.icon:
             embed.set_thumbnail(url=g.icon.url)
         await ctx.reply(embed=embed)

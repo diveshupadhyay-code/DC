@@ -51,8 +51,6 @@ class Aliases(commands.Cog):
 
         real_cmd = doc["command"]
         new_content = f"{prefix_used}{real_cmd}" + (f" {rest}" if rest else "")
-        message = message
-        message._edited_content = new_content
 
         fake = message.__class__.__new__(message.__class__)
         fake.__dict__.update(message.__dict__)
@@ -69,7 +67,12 @@ class Aliases(commands.Cog):
         if not docs:
             embed = discord.Embed(
                 title="Command Aliases",
-                description="No aliases set up yet.\n\n`,alias add <alias> <command>` — create an alias\n`,alias remove <alias>` — delete an alias",
+                description=(
+                    "No aliases set up yet.\n\n"
+                    "`,alias add <alias> <command>` — create an alias\n"
+                    "`,alias remove <alias>` — delete an alias\n"
+                    "`,alias list` — view all aliases"
+                ),
                 color=0x2B2D31
             )
             return await ctx.reply(embed=embed)
@@ -80,16 +83,21 @@ class Aliases(commands.Cog):
             description="\n".join(lines),
             color=0x2B2D31
         )
-        embed.set_footer(text=",alias add <alias> <command> | ,alias remove <alias>")
+        embed.set_footer(text=f"{len(docs)}/50 aliases used")
         await ctx.reply(embed=embed)
 
     @alias.command(name="add")
     @ctx_admin()
     async def alias_add(self, ctx, alias_name: str = None, *, command_name: str = None):
         if not alias_name or not command_name:
-            return await ctx.reply("Usage: `,alias add <alias> <command>`\nExample: `,alias add bc balance`")
+            return await ctx.reply(
+                embed=discord.Embed(
+                    description="Usage: `,alias add <alias> <command>`\nExample: `,alias add bc balance`",
+                    color=0xED4245
+                )
+            )
 
-        alias_name = alias_name.lower().strip()
+        alias_name   = alias_name.lower().strip()
         command_name = command_name.lower().strip()
 
         if len(alias_name) > 30:
@@ -97,28 +105,39 @@ class Aliases(commands.Cog):
 
         real_cmd = self.bot.get_command(command_name)
         if not real_cmd:
-            return await ctx.reply(f"Command `{command_name}` not found.")
+            return await ctx.reply(
+                embed=discord.Embed(
+                    description=f"Command `{command_name}` not found.",
+                    color=0xED4245
+                )
+            )
 
         existing = await cmd_aliases_col.find_one({
             "guild_id": str(ctx.guild.id),
             "alias": alias_name
         })
         if existing:
-            return await ctx.reply(f"Alias `{alias_name}` already exists. Remove it first with `,alias remove {alias_name}`.")
+            return await ctx.reply(
+                embed=discord.Embed(
+                    description=f"Alias `{alias_name}` already exists. Remove it first with `,alias remove {alias_name}`.",
+                    color=0xED4245
+                )
+            )
 
         count = await cmd_aliases_col.count_documents({"guild_id": str(ctx.guild.id)})
         if count >= 50:
             return await ctx.reply("Maximum 50 aliases per server.")
 
         await cmd_aliases_col.insert_one({
-            "guild_id": str(ctx.guild.id),
-            "alias": alias_name,
-            "command": command_name,
+            "guild_id":   str(ctx.guild.id),
+            "alias":      alias_name,
+            "command":    command_name,
             "created_by": str(ctx.author.id)
         })
 
         await ctx.reply(embed=discord.Embed(
-            description=f"Alias created: `{alias_name}` → `{command_name}`\nUse `,{alias_name}` to run `,{command_name}`.",
+            title="Alias Created",
+            description=f"`{alias_name}` → `{command_name}`\n\nUse `,{alias_name}` to run `,{command_name}`.",
             color=0x57F287
         ))
 
@@ -128,10 +147,9 @@ class Aliases(commands.Cog):
         if not alias_name:
             return await ctx.reply("Usage: `,alias remove <alias>`")
 
-        alias_name = alias_name.lower().strip()
         result = await cmd_aliases_col.delete_one({
             "guild_id": str(ctx.guild.id),
-            "alias": alias_name
+            "alias": alias_name.lower().strip()
         })
 
         if result.deleted_count:
@@ -140,7 +158,12 @@ class Aliases(commands.Cog):
                 color=0x2B2D31
             ))
         else:
-            await ctx.reply(f"No alias named `{alias_name}` found.")
+            await ctx.reply(
+                embed=discord.Embed(
+                    description=f"No alias named `{alias_name}` found.",
+                    color=0xED4245
+                )
+            )
 
     @alias.command(name="info")
     async def alias_info(self, ctx, alias_name: str = None):
@@ -152,12 +175,17 @@ class Aliases(commands.Cog):
             "alias": alias_name.lower()
         })
         if not doc:
-            return await ctx.reply(f"No alias named `{alias_name}` found.")
+            return await ctx.reply(
+                embed=discord.Embed(
+                    description=f"No alias named `{alias_name}` found.",
+                    color=0xED4245
+                )
+            )
 
         creator = ctx.guild.get_member(int(doc["created_by"]))
-        embed = discord.Embed(title=f"Alias — {doc['alias']}", color=0x2B2D31)
-        embed.add_field(name="Alias", value=f"`{doc['alias']}`", inline=True)
-        embed.add_field(name="Points to", value=f"`{doc['command']}`", inline=True)
+        embed = discord.Embed(title=f"Alias Info — {doc['alias']}", color=0x2B2D31)
+        embed.add_field(name="Alias",      value=f"`{doc['alias']}`",    inline=True)
+        embed.add_field(name="Points to",  value=f"`{doc['command']}`",  inline=True)
         embed.add_field(name="Created by", value=creator.mention if creator else f"`{doc['created_by']}`", inline=True)
         await ctx.reply(embed=embed)
 

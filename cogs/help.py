@@ -523,7 +523,7 @@ class HelpView(discord.ui.View):
         on_home = self.current_cat is None
 
         home_btn = discord.ui.Button(
-            label="<:home:1522637327149568100> Home",
+            label="🛖 Home",
             style=discord.ButtonStyle.secondary,
             custom_id="help_home",
             row=1,

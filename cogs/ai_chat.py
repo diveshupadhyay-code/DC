@@ -120,18 +120,21 @@ class AIChat(commands.Cog):
                 pass
 
         content_lower = message.content.lower().strip()
-      
+        is_happy_prefix = (
+            content_lower.startswith("happy ") and
+            len(content_lower) > 6
+        )
 
         is_session = (
             channel_id in sessions and
             current_time - sessions[channel_id] < timeout
         )
 
-        if not (is_mentioned or is_reply_to_bot or is_session):
+        if not (is_mentioned or is_reply_to_bot or is_session or is_happy_prefix):
             return
 
         if not self.bot.ai_enabled:
-            if is_mentioned:
+            if is_mentioned or is_happy_prefix:
                 await message.reply(
                     "AI chat is currently disabled globally.",
                     mention_author=False
@@ -141,7 +144,7 @@ class AIChat(commands.Cog):
         gs           = await settings_col.find_one({"_id": str(message.guild.id)}) or {}
         server_ai_on = gs.get("ai_enabled", True)
         if not server_ai_on:
-            if is_mentioned:
+            if is_mentioned or is_happy_prefix:
                 await message.reply(
                     "AI chat is disabled on this server. An admin can enable it with `,aiserver on`.",
                     mention_author=False
@@ -161,7 +164,7 @@ class AIChat(commands.Cog):
         can_use = is_owner or user_prem or srv_prem or has_prem_role
 
         if not can_use:
-            if is_mentioned:
+            if is_mentioned or is_happy_prefix:
                 await message.reply(
                     "AI chat is a **Happy Premium** feature. Ask the server owner to activate Premium.",
                     mention_author=False

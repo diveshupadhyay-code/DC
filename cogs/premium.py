@@ -1,14 +1,9 @@
-"""
-cogs/premium.py — Premium features: Global Call, VoiceMaster, Bump Reminder,
-                   Custom Status, Premium management, Quick Setup.
-                   Built to feel exclusive, not generic.
-"""
-
 import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
 from datetime import datetime, timezone
+import re
 
 from utils.db import (
     premium_col, server_status_col, voicemaster_col,
@@ -19,21 +14,18 @@ from utils.helpers import (
     is_premium_server, is_premium_user, log_event
 )
 
-# ── Gold accent color for all premium embeds ─────────────────────────────────
 GOLD   = 0xF0C040
 SILVER = 0xC0C0C0
 
-# ── In-memory call state ──────────────────────────────────────────────────────
-_active_calls: dict = {}   # {server_id: {partner_channel, my_channel, guild_name}}
-_waiting_list: list = []   # [{server_id, channel_id, guild_name, ts}]
+_active_calls = {}   
+_waiting_list = []   
 
 
-# ── Shared premium gate embed ─────────────────────────────────────────────────
 def _premium_required_embed() -> discord.Embed:
     embed = discord.Embed(
         title="Happy Premium Required",
         description=(
-            "This feature is exclusive to **Happy Premium** servers and users.\n\n"
+            "This feature is exclusive to Happy Premium servers and users.\n\n"
             "Contact the bot owner to activate Premium for your server."
         ),
         color=GOLD
@@ -46,13 +38,8 @@ class Premium(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  PREMIUM STATUS  — ,mypremium
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command(aliases=["myprem", "ispremium"])
     async def mypremium(self, ctx):
-        """Check your own premium status and what features you have access to."""
         user_prem   = await is_premium_user(ctx.author.id)
         server_prem = await is_premium_server(ctx.guild.id)
         has_prem    = user_prem or server_prem or ctx.author.id == BOT_OWNER_ID
@@ -71,20 +58,20 @@ class Premium(commands.Cog):
                 color=GOLD
             )
             embed.set_thumbnail(url=ctx.author.display_avatar.url)
-            embed.add_field(name="Status",       value="\n".join(how),                             inline=False)
-            embed.add_field(name="AI Chat",      value="Active — @mention or reply to Happy",      inline=True)
-            embed.add_field(name="Global Call",  value="Active — `,call` to connect servers",      inline=True)
-            embed.add_field(name="VoiceMaster",  value="Active — `,vcsetup` to configure",         inline=True)
-            embed.add_field(name="Bump Reminder",value="Active — `,bumpreminder on`",              inline=True)
-            embed.add_field(name="Custom Status",value="Active — `,setstatus <text>`",             inline=True)
-            embed.add_field(name="Personal Prefix", value="Active — `,prefix self <symbol>`",             inline=True)
+            embed.add_field(name="Status", value="\n".join(how), inline=False)
+            embed.add_field(name="AI Chat", value="Active — @mention or reply to Happy", inline=True)
+            embed.add_field(name="Global Call", value="Active — ,call to connect servers", inline=True)
+            embed.add_field(name="VoiceMaster", value="Active — ,vcsetup to configure", inline=True)
+            embed.add_field(name="Bump Reminder", value="Active — ,bumpreminder on", inline=True)
+            embed.add_field(name="Custom Status", value="Active — ,setstatus <text>", inline=True)
+            embed.add_field(name="Personal Prefix", value="Active — ,prefix self <symbol>", inline=True)
             embed.set_footer(text="Happy Premium · All features unlocked")
         else:
             embed = discord.Embed(
                 title="Happy Premium — Not Active",
                 description=(
                     "You don't have Premium on this server.\n\n"
-                    "**Premium unlocks:**\n"
+                    "Premium unlocks:\n"
                     "— AI Chat (mention Happy to start chatting)\n"
                     "— Global Call (connect to other servers)\n"
                     "— VoiceMaster (auto temp voice channels)\n"
@@ -99,17 +86,12 @@ class Premium(commands.Cog):
 
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  OWNER — PREMIUM MANAGEMENT
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.group(invoke_without_command=True)
     @ctx_owner()
     async def premium(self, ctx):
-        """Manage premium entries (owner only)."""
         items   = await premium_col.find({}).to_list(100)
-        servers = [i for i in items if i["type"] == "server"]
-        users   = [i for i in items if i["type"] == "user"]
+        servers = [i for i in items if i.get("type") == "server"]
+        users   = [i for i in items if i.get("type") == "user"]
 
         embed = discord.Embed(
             title="Premium Management",
@@ -142,11 +124,9 @@ class Premium(commands.Cog):
     @premium.command(name="add")
     @ctx_owner()
     async def premium_add(self, ctx, type_: str = None, target: str = None):
-        """Activate premium for a server or user."""
         if not type_ or type_ not in ("server", "user") or not target:
             return await ctx.reply("Usage: `,premium add server/user <id>`")
 
-        # Try to resolve the name for better display
         name = target
         if type_ == "server":
             guild = self.bot.get_guild(int(target))
@@ -170,12 +150,11 @@ class Premium(commands.Cog):
             description=f"**{name}** (`{target}`) now has Premium access.",
             color=GOLD
         )
-        embed.add_field(name="Type",   value=type_.title(), inline=True)
-        embed.add_field(name="ID",     value=f"`{target}`", inline=True)
+        embed.add_field(name="Type", value=type_.title(), inline=True)
+        embed.add_field(name="ID", value=f"`{target}`", inline=True)
         embed.set_footer(text="Happy Premium · Activated")
         await ctx.reply(embed=embed)
 
-        # Notify the server/user if possible
         if type_ == "server":
             guild = self.bot.get_guild(int(target))
             if guild and guild.system_channel:
@@ -183,14 +162,14 @@ class Premium(commands.Cog):
                     notify = discord.Embed(
                         title="Happy Premium — Activated!",
                         description=(
-                            "This server now has **Happy Premium**.\n\n"
-                            "**Unlocked features:**\n"
+                            "This server now has Happy Premium.\n\n"
+                            "Unlocked features:\n"
                             "— AI Chat (mention Happy)\n"
-                            "— Global Call (`,call`)\n"
-                            "— VoiceMaster (`,vcsetup`)\n"
-                            "— Bump Reminder (`,bumpreminder on`)\n"
-                            "— Custom Bot Status (`,setstatus`)\n\n"
-                            "Use `,mypremium` to see your full access."
+                            "— Global Call (,call)\n"
+                            "— VoiceMaster (,vcsetup)\n"
+                            "— Bump Reminder (,bumpreminder on)\n"
+                            "— Custom Bot Status (,setstatus)\n\n"
+                            "Use ,mypremium to see your full access."
                         ),
                         color=GOLD
                     )
@@ -202,7 +181,6 @@ class Premium(commands.Cog):
     @premium.command(name="remove")
     @ctx_owner()
     async def premium_remove(self, ctx, type_: str = None, target: str = None):
-        """Remove premium access."""
         if not type_ or type_ not in ("server", "user") or not target:
             return await ctx.reply("Usage: `,premium remove server/user <id>`")
         result = await premium_col.delete_one({"type": type_, "id": target})
@@ -217,7 +195,6 @@ class Premium(commands.Cog):
     @premium.command(name="info")
     @ctx_owner()
     async def premium_info(self, ctx, guild_id: int = None):
-        """View premium details for a specific server."""
         if not guild_id:
             return await ctx.reply("Usage: `,premium info <guild_id>`")
         guild = self.bot.get_guild(guild_id)
@@ -231,35 +208,20 @@ class Premium(commands.Cog):
         embed = discord.Embed(title=f"Premium Info — {guild.name}", color=GOLD)
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
-        embed.add_field(name="Premium",        value="Active" if doc else "Not active",   inline=True)
-        embed.add_field(name="Members",        value=guild.member_count,                  inline=True)
-        embed.add_field(name="VoiceMaster",    value="Configured" if vc else "Not set",   inline=True)
-        embed.add_field(name="Bump Reminder",  value="On" if bmp and bmp.get("enabled") else "Off", inline=True)
-        embed.add_field(name="Custom Status",  value=f"`{sts['status']}`" if sts else "Not set", inline=True)
+        embed.add_field(name="Premium", value="Active" if doc else "Not active", inline=True)
+        embed.add_field(name="Members", value=str(guild.member_count), inline=True)
+        embed.add_field(name="VoiceMaster", value="Configured" if vc else "Not set", inline=True)
+        embed.add_field(name="Bump Reminder", value="On" if bmp and bmp.get("enabled") else "Off", inline=True)
+        embed.add_field(name="Custom Status", value=f"`{sts['status']}`" if sts else "Not set", inline=True)
         if doc and doc.get("activated_at"):
             embed.add_field(name="Activated", value=f"<t:{int(doc['activated_at'].timestamp())}:R>", inline=True)
         await ctx.reply(embed=embed)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  CUSTOM BOT STATUS
-    # ══════════════════════════════════════════════════════════════════════════
 
     @commands.group(invoke_without_command=True)
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def setstatus(self, ctx, *, status: str = None):
-        """
-        Set a custom status for this server.
-        It will show in the bot's rotation as "[YourServer] your text".
-        Only server admins can use this (Premium servers only).
-
-        Usage:
-          ,setstatus <text>    — set status
-          ,setstatus remove    — remove your server's status
-          ,setstatus view      — see current status
-        """
         if not status:
-            # Show current status
             doc = await server_status_col.find_one({"guild_id": str(ctx.guild.id)})
             if doc:
                 embed = discord.Embed(
@@ -317,7 +279,6 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def setstatus_remove(self, ctx):
-        """Remove this server's custom status."""
         result = await server_status_col.delete_one({"guild_id": str(ctx.guild.id)})
         if result.deleted_count:
             await ctx.reply(embed=discord.Embed(
@@ -329,7 +290,6 @@ class Premium(commands.Cog):
     @setstatus.command(name="view")
     @commands.has_permissions(administrator=True)
     async def setstatus_view(self, ctx):
-        """View this server's current custom status."""
         doc = await server_status_col.find_one({"guild_id": str(ctx.guild.id)})
         if doc:
             embed = discord.Embed(
@@ -344,38 +304,26 @@ class Premium(commands.Cog):
             embed = discord.Embed(description="No custom status set.", color=0x2B2D31)
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  BUMP REMINDER
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command()
     @ctx_premium()
     @commands.has_permissions(administrator=True)
-    async def bumpreminder(self, ctx, status: str = "on"):
-        """
-        Enable or disable the DISBOARD bump reminder.
-        Usage: ,bumpreminder on/off
-        Add --role @role to ping a role when it is time to bump.
-        """
-        import re as _re
-        ping_role: discord.Role | None = None
-
-        raw = status
-        role_match = _re.search(r"<@&(\d+)>", raw)
+    async def bumpreminder(self, ctx, *, status: str = "on"):
+        ping_role = None
+        role_match = re.search(r"<@&(\d+)>", status)
         if role_match:
             ping_role = ctx.guild.get_role(int(role_match.group(1)))
-            raw = raw[:role_match.start()].strip()
+            status = status[:role_match.start()].strip() or "on"
 
-        state = raw.lower() in ("on", "true", "1", "yes") if raw else True
+        state = status.lower() in ("on", "true", "1", "yes")
 
         update_data = {
             "enabled":    state,
             "channel_id": str(ctx.channel.id),
             "set_by":     str(ctx.author.id),
         }
-        if ping_role:
+        if ping_role and state:
             update_data["ping_role_id"] = str(ping_role.id)
-        elif state is False:
+        elif not state:
             update_data["ping_role_id"] = None
 
         await bump_col.update_one(
@@ -385,23 +333,20 @@ class Premium(commands.Cog):
         )
 
         if state:
-            doc = await bump_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
-            saved_role_id = doc.get("ping_role_id")
-            saved_role    = ctx.guild.get_role(int(saved_role_id)) if saved_role_id else None
             embed = discord.Embed(
                 title="Bump Reminder — Enabled",
                 description=(
                     f"Happy is now watching for DISBOARD bumps in this server.\n\n"
-                    f"1. Someone uses `/bump` on DISBOARD\n"
+                    f"1. Someone uses /bump on DISBOARD\n"
                     f"2. Happy detects the bump confirmation\n"
-                    f"3. After **2 hours**, Happy pings in {ctx.channel.mention}\n"
+                    f"3. After 2 hours, Happy pings in {ctx.channel.mention}\n"
                     f"4. Never miss a bump again"
                 ),
                 color=GOLD
             )
             embed.add_field(
                 name="Ping Role",
-                value=saved_role.mention if saved_role else "None — use `,bumpreminder on @role` to set one",
+                value=ping_role.mention if ping_role else "None — use `,bumpreminder on @role` to set one",
                 inline=False
             )
             embed.set_footer(text="DISBOARD Bot ID: 302050872383242240")
@@ -413,7 +358,6 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def bumppingrole(self, ctx, role: discord.Role = None):
-        """Set or remove the role pinged by bump reminder. Usage: ,bumppingrole @role"""
         if not role:
             doc = await bump_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
             rid = doc.get("ping_role_id")
@@ -422,35 +366,20 @@ class Premium(commands.Cog):
                 description=f"Current bump ping role: {current}\nUsage: `,bumppingrole @role` or `,bumppingrole remove`",
                 color=0x2B2D31
             ))
-        if str(role) == "remove":
-            await bump_col.update_one(
-                {"guild_id": str(ctx.guild.id)},
-                {"$unset": {"ping_role_id": ""}},
-                upsert=True
-            )
-            return await ctx.reply("Bump ping role removed.")
         await bump_col.update_one(
             {"guild_id": str(ctx.guild.id)},
             {"$set": {"ping_role_id": str(role.id)}},
             upsert=True
         )
         await ctx.reply(embed=discord.Embed(
-            description=f"Bump reminder will now ping {role.mention} when it's time to bump.",
+            description=f"Bump reminder will now ping {role.mention} when it is time to bump.",
             color=GOLD
         ))
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  VOICEMASTER — Temporary Voice Channels
-    # ══════════════════════════════════════════════════════════════════════════
 
     @commands.group(invoke_without_command=True)
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def vcsetup(self, ctx):
-        """
-        Set up VoiceMaster — members create their own private temp voice channels.
-        Sub-commands: setup, limit, name, remove
-        """
         doc = await voicemaster_col.find_one({"guild_id": str(ctx.guild.id)})
         if doc:
             create_ch = ctx.guild.get_channel(int(doc.get("create_channel_id", 0)))
@@ -463,7 +392,7 @@ class Premium(commands.Cog):
                 ),
                 color=GOLD
             )
-            embed.add_field(name="Default User Limit", value=doc.get("default_limit", 10), inline=True)
+            embed.add_field(name="Default User Limit", value=str(doc.get("default_limit", 10)), inline=True)
             embed.add_field(name="Name Template",      value=f"`{doc.get('name_template', '{user} VC')}`", inline=True)
             embed.add_field(
                 name="Sub-commands",
@@ -491,12 +420,10 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def vcsetup_create(self, ctx):
-        """Create the 'Join to Create' VC that triggers VoiceMaster."""
         cat = discord.utils.get(ctx.guild.categories, name="Voice Channels")
         if not cat:
             cat = await ctx.guild.create_category("Voice Channels")
 
-        # Check if already exists
         doc = await voicemaster_col.find_one({"guild_id": str(ctx.guild.id)})
         if doc:
             existing = ctx.guild.get_channel(int(doc.get("create_channel_id", 0)))
@@ -509,7 +436,7 @@ class Premium(commands.Cog):
                 )
 
         vc = await ctx.guild.create_voice_channel(
-            name="✦ Join to Create",
+            name="Join to Create",
             category=cat,
             reason="VoiceMaster setup"
         )
@@ -519,7 +446,8 @@ class Premium(commands.Cog):
                 "create_channel_id": str(vc.id),
                 "category_id":       str(cat.id),
                 "default_limit":     10,
-                "name_template":     "{user}'s VC"
+                "name_template":     "{user}'s VC",
+                "temp_channels":     []
             }},
             upsert=True
         )
@@ -540,7 +468,6 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def vcsetup_limit(self, ctx, limit: int = None):
-        """Set the default user limit for auto-created VCs (0 = unlimited)."""
         if limit is None or not 0 <= limit <= 99:
             return await ctx.reply("Usage: `,vcsetup limit <0-99>`  (0 = unlimited)")
         await voicemaster_col.update_one(
@@ -558,11 +485,6 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def vcsetup_name(self, ctx, *, template: str = None):
-        """
-        Set the name template for auto-created VCs.
-        Use {user} for the member's display name.
-        Example: ,vcsetup name {user}'s Room
-        """
         if not template:
             return await ctx.reply("Usage: `,vcsetup name <template>`\nExample: `,vcsetup name {user}'s Room`")
         if len(template) > 50:
@@ -582,18 +504,15 @@ class Premium(commands.Cog):
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def vcsetup_remove(self, ctx):
-        """Remove VoiceMaster from this server."""
         doc = await voicemaster_col.find_one({"guild_id": str(ctx.guild.id)})
         if not doc:
             return await ctx.reply("VoiceMaster is not configured on this server.")
-        # Delete the trigger channel
         ch = ctx.guild.get_channel(int(doc.get("create_channel_id", 0)))
         if ch:
             try:
                 await ch.delete(reason="VoiceMaster removed")
             except:
                 pass
-        # Delete any lingering temp VCs
         for vcid in doc.get("temp_channels", []):
             tc = ctx.guild.get_channel(int(vcid))
             if tc:
@@ -607,19 +526,12 @@ class Premium(commands.Cog):
             color=0x2B2D31
         ))
 
-    # ── VoiceState handler ────────────────────────────────────────────────────
     @commands.Cog.listener()
-    async def on_voice_state_update(
-        self,
-        member: discord.Member,
-        before:  discord.VoiceState,
-        after:   discord.VoiceState
-    ):
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         doc = await voicemaster_col.find_one({"guild_id": str(member.guild.id)})
         if not doc:
             return
 
-        # ── Joined the trigger channel ────────────────────────────────────────
         if after.channel and str(after.channel.id) == doc.get("create_channel_id"):
             cat      = member.guild.get_channel(int(doc["category_id"]))
             template = doc.get("name_template", "{user}'s VC")
@@ -632,7 +544,6 @@ class Premium(commands.Cog):
                 user_limit=limit,
                 reason=f"VoiceMaster: {member}"
             )
-            # Give owner full control of their VC
             await new_vc.set_permissions(
                 member,
                 connect=True, speak=True, manage_channels=True,
@@ -644,11 +555,9 @@ class Premium(commands.Cog):
                 {"$push": {"temp_channels": str(new_vc.id)}}
             )
 
-        # ── Left a temp VC → delete if empty ─────────────────────────────────
         if before.channel and before.channel != (after.channel if after else None):
             temp_ids = doc.get("temp_channels", [])
-            if (str(before.channel.id) in temp_ids
-                    and len(before.channel.members) == 0):
+            if str(before.channel.id) in temp_ids and len(before.channel.members) == 0:
                 try:
                     await before.channel.delete(reason="VoiceMaster: empty channel")
                 except:
@@ -658,18 +567,10 @@ class Premium(commands.Cog):
                     {"$pull": {"temp_channels": str(before.channel.id)}}
                 )
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  GLOBAL CALL  — Cross-server text relay
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command()
     @ctx_premium()
     @commands.has_permissions(administrator=True)
     async def call(self, ctx):
-        """
-        Connect this channel to another server's channel for a live cross-server chat.
-        Messages sent here will be relayed to the partner server in real time.
-        """
         sid = ctx.guild.id
         cid = ctx.channel.id
 
@@ -694,17 +595,21 @@ class Premium(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        if _waiting_list:
-            # Match found
-            partner   = _waiting_list.pop(0)
-            p_sid     = partner["server_id"]
-            p_cid     = partner["channel_id"]
-            p_name    = partner.get("guild_name", "Unknown Server")
+        matching_partner = None
+        for item in _waiting_list:
+            if item["server_id"] != sid:
+                matching_partner = item
+                break
+
+        if matching_partner:
+            _waiting_list.remove(matching_partner)
+            p_sid     = matching_partner["server_id"]
+            p_cid     = matching_partner["channel_id"]
+            p_name    = matching_partner.get("guild_name", "Unknown Server")
 
             _active_calls[sid]   = {"partner_channel": p_cid, "my_channel": cid,   "guild_name": p_name}
             _active_calls[p_sid] = {"partner_channel": cid,   "my_channel": p_cid, "guild_name": ctx.guild.name}
 
-            # My side
             my_embed = discord.Embed(
                 title="Call Connected",
                 description=(
@@ -717,7 +622,6 @@ class Premium(commands.Cog):
             my_embed.set_footer(text="Happy Global Call · Premium Feature")
             await ctx.send(embed=my_embed)
 
-            # Partner side
             partner_embed = discord.Embed(
                 title="Call Connected",
                 description=(
@@ -732,7 +636,6 @@ class Premium(commands.Cog):
             if pch:
                 await pch.send(embed=partner_embed)
         else:
-            # No match yet — add to queue
             _waiting_list.append({
                 "server_id":  sid,
                 "channel_id": cid,
@@ -744,7 +647,7 @@ class Premium(commands.Cog):
                 description=(
                     f"Queue position: **#{queue_pos}**\n\n"
                     "As soon as another premium server uses `,call`, "
-                    "you'll be connected instantly.\n"
+                    "you will be connected instantly.\n"
                     "Use `,hangup` to cancel."
                 ),
                 color=GOLD
@@ -755,10 +658,8 @@ class Premium(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def hangup(self, ctx):
-        """End the current global call or remove yourself from the call queue."""
         sid = ctx.guild.id
 
-        # Remove from waiting list
         in_wait = next((d for d in _waiting_list if d["server_id"] == sid), None)
         if in_wait:
             _waiting_list.remove(in_wait)
@@ -768,13 +669,11 @@ class Premium(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # End active call
         if sid in _active_calls:
             data   = _active_calls.pop(sid)
             p_cid  = data.get("partner_channel")
             p_name = data.get("guild_name", "the other server")
 
-            # Remove partner entry
             for psid, pdata in list(_active_calls.items()):
                 if pdata.get("my_channel") == p_cid:
                     del _active_calls[psid]
@@ -787,7 +686,6 @@ class Premium(commands.Cog):
             )
             await ctx.reply(embed=embed)
 
-            # Notify partner
             if p_cid:
                 pch = self.bot.get_channel(p_cid)
                 if pch:
@@ -807,7 +705,6 @@ class Premium(commands.Cog):
 
     @commands.command(aliases=["callstatus", "cs"])
     async def callinfo(self, ctx):
-        """Check current call status for this server."""
         sid  = ctx.guild.id
         data = _active_calls.get(sid)
 
@@ -842,14 +739,11 @@ class Premium(commands.Cog):
         embed.set_footer(text="Happy Global Call · Premium Feature")
         await ctx.reply(embed=embed)
 
-    # ── Message relay ─────────────────────────────────────────────────────────
     async def relay_call(self, message: discord.Message):
-        """Called by Core cog to relay messages during an active call."""
         sid  = message.guild.id
         data = _active_calls.get(sid)
-        if not data or message.channel.id != data.get("my_channel"):
+        if not data or message.channel.id != data.get("my_channel") or message.author.bot:
             return
-        # Safety: never relay @everyone or @here
         if message.mention_everyone:
             return
         pch = self.bot.get_channel(data["partner_channel"])
@@ -874,17 +768,9 @@ class Premium(commands.Cog):
         except:
             pass
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  QUICK SETUP WIZARD
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def quicksetup(self, ctx):
-        """
-        Run the server quick-setup wizard.
-        Auto-creates standard channels, categories, and roles.
-        """
         embed = discord.Embed(
             title="Quick Setup Wizard",
             description="Setting up your server. This may take a moment...",
@@ -895,7 +781,6 @@ class Premium(commands.Cog):
         created = []
         skipped = []
 
-        # ── Roles ─────────────────────────────────────────────────────────────
         roles_to_make = [
             ("Member",    discord.Color.from_rgb(88, 101, 242)),
             ("Moderator", discord.Color.from_rgb(87, 242, 135)),
@@ -905,31 +790,29 @@ class Premium(commands.Cog):
         for rname, rcolor in roles_to_make:
             if not discord.utils.get(guild.roles, name=rname):
                 await guild.create_role(name=rname, color=rcolor)
-                created.append(f"Role `{rname}`")
+                created.append(f"Role: {rname}")
             else:
-                skipped.append(f"Role `{rname}` (exists)")
-            await asyncio.sleep(0.3)
+                skipped.append(f"Role: {rname} (exists)")
+            await asyncio.sleep(0.1)
 
-        # ── Categories & channels ─────────────────────────────────────────────
         cats = {
-            "INFORMATION": ["rules", "announcements", "roles"],
-            "GENERAL":     ["general", "off-topic", "media", "bot-commands"],
-            "STAFF":       ["mod-logs", "mod-chat", "staff-chat"],
+            "Information": ["rules", "announcements", "roles"],
+            "General":     ["general", "off-topic", "media", "bot-commands"],
+            "Staff Only":       ["mod-logs", "mod-chat", "staff-chat"],
         }
         for cat_name, ch_names in cats.items():
             cat = discord.utils.get(guild.categories, name=cat_name)
             if not cat:
                 cat = await guild.create_category(cat_name)
-                created.append(f"Category `{cat_name}`")
+                created.append(f"Category: {cat_name}")
             for ch_name in ch_names:
                 if not discord.utils.get(guild.channels, name=ch_name):
                     await guild.create_text_channel(ch_name, category=cat)
-                    created.append(f"#{ch_name}")
+                    created.append(f"Channel: #{ch_name}")
                 else:
-                    skipped.append(f"#{ch_name} (exists)")
-                await asyncio.sleep(0.3)
+                    skipped.append(f"Channel: #{ch_name} (exists)")
+                await asyncio.sleep(0.1)
 
-        # ── Final embed ────────────────────────────────────────────────────────
         result_embed = discord.Embed(
             title="Quick Setup Complete",
             color=GOLD,

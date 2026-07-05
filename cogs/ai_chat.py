@@ -61,7 +61,7 @@ class AIChat(commands.Cog):
                 title="AI Chat — Server Settings",
                 color=0x57F287 if current else 0xED4245
             )
-            embed.add_field(name="Status",  value=f"**{state}**",                                 inline=True)
+            embed.add_field(name="Status",  value=f"**{state}**",                               inline=True)
             embed.add_field(name="Premium", value="Yes" if is_prem else "No (required for AI)",   inline=True)
             embed.add_field(name="Global",  value="ON" if self.bot.ai_enabled else "OFF (owner)", inline=True)
             embed.add_field(
@@ -119,22 +119,17 @@ class AIChat(commands.Cog):
             except:
                 pass
 
-        content_lower = message.content.lower().strip()
-        is_happy_prefix = (
-            content_lower.startswith("happy ") and
-            len(content_lower) > 6
-        )
-
         is_session = (
             channel_id in sessions and
             current_time - sessions[channel_id] < timeout
         )
 
-        if not (is_mentioned or is_reply_to_bot or is_session or is_happy_prefix):
+        # Removed the happy prefix check from here completely
+        if not (is_mentioned or is_reply_to_bot or is_session):
             return
 
         if not self.bot.ai_enabled:
-            if is_mentioned or is_happy_prefix:
+            if is_mentioned:
                 await message.reply(
                     "AI chat is currently disabled globally.",
                     mention_author=False
@@ -144,7 +139,7 @@ class AIChat(commands.Cog):
         gs           = await settings_col.find_one({"_id": str(message.guild.id)}) or {}
         server_ai_on = gs.get("ai_enabled", True)
         if not server_ai_on:
-            if is_mentioned or is_happy_prefix:
+            if is_mentioned:
                 await message.reply(
                     "AI chat is disabled on this server. An admin can enable it with `,aiserver on`.",
                     mention_author=False
@@ -164,7 +159,7 @@ class AIChat(commands.Cog):
         can_use = is_owner or user_prem or srv_prem or has_prem_role
 
         if not can_use:
-            if is_mentioned or is_happy_prefix:
+            if is_mentioned:
                 await message.reply(
                     "AI chat is a **Happy Premium** feature. Ask the server owner to activate Premium.",
                     mention_author=False
@@ -175,15 +170,13 @@ class AIChat(commands.Cog):
 
         uid = message.author.id
 
-        if is_happy_prefix:
-            clean_prompt = message.content[6:].strip()
-        else:
-            clean_prompt = (
-                message.content
-                .replace(f"<@!{self.bot.user.id}>", "")
-                .replace(f"<@{self.bot.user.id}>",  "")
-                .strip()
-            )
+        # Clean prompt handles only standard user tags now
+        clean_prompt = (
+            message.content
+            .replace(f"<@!{self.bot.user.id}>", "")
+            .replace(f"<@{self.bot.user.id}>",  "")
+            .strip()
+        )
 
         if not clean_prompt:
             return

@@ -52,3 +52,4 @@ invite_log_col      = db["invite_log_config"]
 msg_count_col       = db["message_counts"]
 ep_config_col       = db["extraperm_config"]
 cmd_aliases_col     = db["command_aliases"]
+antinuke_col        = db["antinuke_config"]  # anti-nuke config + whitelist

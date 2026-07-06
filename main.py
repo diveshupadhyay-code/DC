@@ -51,6 +51,8 @@ COGS = [
     "cogs.tracker",
     "cogs.extraperm",
     "cogs.aliases",
+    "cogs.antinuke",
+
 ]
 
 async def main():

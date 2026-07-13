@@ -46,7 +46,6 @@ COGS = [
     "cogs.aesthetic",
     "cogs.games",
     "cogs.economy",
-    "cogs.invest",
     "cogs.levelroles",
     "cogs.tracker",
     "cogs.extraperm",

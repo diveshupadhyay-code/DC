@@ -1,26 +1,3 @@
-"""
-cogs/aesthetic.py — Makes every server feel premium and polished.
-
-FREE tier (all servers):
-  - Clean embed responses everywhere
-  - Auto-react to media/art posts
-  - Typing indicator on bot replies
-  - Server activity greeting cards
-  - Clean join/leave DMs
-
-PREMIUM tier (premium servers):
-  - Auto-role on join with welcome DM card
-  - Aesthetic channel headers (auto-topic banners)
-  - Server stats embed (live vanity card)
-  - Color roles system (members pick accent color)
-  - Birthday announcement card with confetti
-  - Milestone announcements (member count milestones)
-  - Auto-thread on important announcements
-  - Embed-only mode (delete plain text in specified channels)
-  - Server card / invite card
-  - Auto pin first message in announcement channels
-"""
-
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -34,21 +11,17 @@ from utils.helpers import (
     is_premium_server, log_event
 )
 
-# ── Extra collections ─────────────────────────────────────────────────────────
-aesthetic_col   = db["aesthetic_config"]   # per-guild aesthetic settings
-color_roles_col = db["color_roles"]         # {guild_id, roles: [{name, color, role_id}]}
-embed_only_col  = db["embed_only_channels"] # {guild_id, channel_ids: [...]}
-milestone_col   = db["milestones"]          # {guild_id, announced: [100, 500, ...]}
+aesthetic_col   = db["aesthetic_config"]
+color_roles_col = db["color_roles"]
+embed_only_col  = db["embed_only_channels"]
+milestone_col   = db["milestones"]
 
-# ── Gold accent for premium ───────────────────────────────────────────────────
 GOLD   = 0xF0C040
 SILVER = 0xC0C0C0
 
-# ── Member count milestones to celebrate ─────────────────────────────────────
 MILESTONES = [10, 25, 50, 100, 200, 250, 500, 750, 1000,
               2000, 5000, 10000, 25000, 50000, 100000]
 
-# ── Aesthetic color palette for color roles ───────────────────────────────────
 DEFAULT_COLORS = [
     ("Rose",      0xE8425A),
     ("Lavender",  0xA78BFA),
@@ -64,26 +37,16 @@ DEFAULT_COLORS = [
     ("Steel",     0x64748B),
 ]
 
-
 class Aesthetic(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  FREE — AUTO REACTIONS ON MEDIA
-    # ══════════════════════════════════════════════════════════════════════════
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  FREE — MEMBER JOIN CARD
-    # ══════════════════════════════════════════════════════════════════════════
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         gs  = await settings_col.find_one({"_id": str(member.guild.id)}) or {}
         cfg = await aesthetic_col.find_one({"guild_id": str(member.guild.id)}) or {}
 
-        # ── DM welcome card ────────────────────────────────────────────────
-        if cfg.get("dm_welcome"):
+        if cfg.get("dm_welcome", True):
             try:
                 embed = discord.Embed(
                     title=f"Welcome to {member.guild.name}",
@@ -103,7 +66,6 @@ class Aesthetic(commands.Cog):
             except:
                 pass
 
-        # ── Auto-role on join (premium) ────────────────────────────────────
         if await is_premium_server(member.guild.id):
             auto_role_id = cfg.get("auto_role_id")
             if auto_role_id:
@@ -114,13 +76,8 @@ class Aesthetic(commands.Cog):
                     except:
                         pass
 
-        # ── Milestone check (premium) ──────────────────────────────────────
         if await is_premium_server(member.guild.id):
             await self._check_milestone(member.guild)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  PREMIUM — MILESTONE ANNOUNCEMENTS
-    # ══════════════════════════════════════════════════════════════════════════
 
     async def _check_milestone(self, guild: discord.Guild):
         count  = guild.member_count
@@ -132,7 +89,6 @@ class Aesthetic(commands.Cog):
         if count in announced:
             return
 
-        # Mark as announced
         await milestone_col.update_one(
             {"guild_id": str(guild.id)},
             {"$push": {"announced": count}},
@@ -159,13 +115,8 @@ class Aesthetic(commands.Cog):
         embed.set_footer(text=f"Milestone · {datetime.now(timezone.utc).strftime('%d %b %Y')}")
         await ch.send(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  PREMIUM — COLOR ROLES
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.group(invoke_without_command=True)
     async def color(self, ctx):
-        """Pick an accent color role for yourself (Premium servers only)."""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Color roles are a **Happy Premium** feature.",
@@ -206,7 +157,6 @@ class Aesthetic(commands.Cog):
     @color.command(name="setup")
     @ctx_admin()
     async def color_setup(self, ctx):
-        """Create the default color role palette for this server (Admin only)."""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Color roles are a **Happy Premium** feature.",
@@ -247,7 +197,6 @@ class Aesthetic(commands.Cog):
 
     @color.command(name="pick")
     async def color_pick(self, ctx, *, name: str = None):
-        """Pick a color role."""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Color roles are a **Happy Premium** feature.",
@@ -261,7 +210,6 @@ class Aesthetic(commands.Cog):
         if not doc:
             return await ctx.reply("Color roles not set up. Ask an admin to run `,color setup`.")
 
-        # Find matching role
         match = next(
             (r for r in doc["roles"] if r["name"].lower() == name.lower()),
             None
@@ -274,7 +222,6 @@ class Aesthetic(commands.Cog):
         if not role:
             return await ctx.reply("That color role no longer exists. Ask an admin to run `,color setup` again.")
 
-        # Remove any existing color roles first
         existing_color_roles = [
             ctx.guild.get_role(int(r["role_id"]))
             for r in doc["roles"]
@@ -292,7 +239,6 @@ class Aesthetic(commands.Cog):
 
     @color.command(name="remove")
     async def color_remove(self, ctx):
-        """Remove your color role."""
         doc = await color_roles_col.find_one({"guild_id": str(ctx.guild.id)})
         if not doc:
             return await ctx.reply("No color roles set up on this server.")
@@ -315,7 +261,6 @@ class Aesthetic(commands.Cog):
     @color.command(name="add")
     @ctx_admin()
     async def color_add(self, ctx, name: str = None, hex_color: str = None):
-        """Add a custom color to the palette. Usage: ,color add Sunset #FF6B35"""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply("Premium only feature.")
         if not name or not hex_color:
@@ -340,25 +285,17 @@ class Aesthetic(commands.Cog):
             color=color_int
         ))
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  SERVER CARD  (premium)
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command(aliases=["scard", "invite"])
     async def servercard(self, ctx):
-        """Generate a beautiful server info / invite card."""
         g      = ctx.guild
         is_prem = await is_premium_server(g.id)
         color  = GOLD if is_prem else 0x2B2D31
 
-        # Build invite
         invite_url = None
         try:
-            # Try existing vanity URL first
             if g.vanity_url_code:
                 invite_url = f"https://discord.gg/{g.vanity_url_code}"
             else:
-                # Find a general channel to create invite
                 for ch in g.text_channels:
                     if ch.permissions_for(g.me).create_instant_invite:
                         inv = await ch.create_invite(max_age=0, max_uses=0, reason="Server card")
@@ -401,10 +338,6 @@ class Aesthetic(commands.Cog):
 
         await ctx.reply(embed=embed)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  AESTHETIC LISTENER
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.Cog.listener("on_message")
     async def aesthetic_on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
@@ -412,21 +345,18 @@ class Aesthetic(commands.Cog):
 
         cfg = await aesthetic_col.find_one({"guild_id": str(message.guild.id)}) or {}
 
-        # ── Auto-react in media channels ──────────────────────────────────
-        if cfg.get("media_channels"):
-            if str(message.channel.id) in cfg["media_channels"]:
-                if message.attachments or any(
-                    ext in message.content.lower()
-                    for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]
-                ):
-                    for emoji in ["❤️", "🔥"]:
-                        try:
-                            await asyncio.sleep(0.3)
-                            await message.add_reaction(emoji)
-                        except:
-                            pass
+        media_config = cfg.get("media_channel_config")
+        if media_config and str(message.channel.id) == media_config.get("channel_id"):
+            if message.attachments or any(
+                ext in message.content.lower()
+                for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+            ):
+                emoji = media_config.get("emoji", "❤️")
+                try:
+                    await message.add_reaction(emoji)
+                except:
+                    pass
 
-        # ── Embed-only channels (premium) ─────────────────────────────────
         if cfg.get("embed_only_channels") and await is_premium_server(message.guild.id):
             if (str(message.channel.id) in cfg["embed_only_channels"]
                     and message.content
@@ -449,22 +379,6 @@ class Aesthetic(commands.Cog):
                 except:
                     pass
 
-        # ── Auto-thread on announcements (premium) ─────────────────────────
-        if cfg.get("auto_thread_channels") and await is_premium_server(message.guild.id):
-            if str(message.channel.id) in cfg["auto_thread_channels"]:
-                try:
-                    title = (
-                        message.content[:50] + "..." if len(message.content) > 50
-                        else message.content or "Discussion"
-                    )
-                    await message.create_thread(
-                        name=title,
-                        auto_archive_duration=1440
-                    )
-                except:
-                    pass
-
-        # ── Auto-pin first message in pin channels (premium) ───────────────
         if cfg.get("auto_pin_channels") and await is_premium_server(message.guild.id):
             if str(message.channel.id) in cfg["auto_pin_channels"]:
                 try:
@@ -474,14 +388,9 @@ class Aesthetic(commands.Cog):
                 except:
                     pass
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  AESTHETIC CONFIG COMMANDS
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.group(invoke_without_command=True)
     @ctx_admin()
     async def aesthetic(self, ctx):
-        """Aesthetic settings dashboard."""
         cfg     = await aesthetic_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
         is_prem = await is_premium_server(ctx.guild.id)
         color   = GOLD if is_prem else 0x2B2D31
@@ -492,17 +401,22 @@ class Aesthetic(commands.Cog):
                 return "None"
             return " ".join(f"<#{i}>" for i in ids[:5])
 
+        media_cfg = cfg.get("media_channel_config")
+        if media_cfg:
+            media_val = f"<#{media_cfg['channel_id']}> ({media_cfg['emoji']})"
+        else:
+            media_val = "None"
+
         embed = discord.Embed(
             title="Aesthetic Settings",
             color=color
         )
         embed.add_field(name="Premium",            value="Yes" if is_prem else "No",           inline=True)
-        embed.add_field(name="Accent Color",       value=f"`#{cfg.get('accent_color', '2B2D31'):06X}`", inline=True)
+        embed.add_field(name="Accent Color",       value=f"`#{cfg.get('accent_color', 2829617):06X}`", inline=True)
         embed.add_field(name="Auto-role on Join",  value=f"<@&{cfg['auto_role_id']}>" if cfg.get("auto_role_id") else "Off", inline=True)
-        embed.add_field(name="DM Welcome Card",    value="On" if cfg.get("dm_welcome") else "Off",    inline=True)
-        embed.add_field(name="Media Channels",     value=_fmt_ids("media_channels"),                  inline=True)
+        embed.add_field(name="DM Welcome Card",    value="On" if cfg.get("dm_welcome", True) else "Off",    inline=True)
+        embed.add_field(name="Media Channel",      value=media_val,                                   inline=True)
         embed.add_field(name="Embed-Only Channels",value=_fmt_ids("embed_only_channels"),              inline=True)
-        embed.add_field(name="Auto-Thread",        value=_fmt_ids("auto_thread_channels"),             inline=True)
         embed.add_field(name="Auto-Pin",           value=_fmt_ids("auto_pin_channels"),                inline=True)
         embed.add_field(name="Milestone Channel",  value=f"<#{cfg['milestone_channel_id']}>" if cfg.get("milestone_channel_id") else "Default", inline=True)
 
@@ -513,9 +427,8 @@ class Aesthetic(commands.Cog):
                 "`,aesthetic autorole @role` — auto-assign role on join\n"
                 "`,aesthetic dmwelcome on/off` — toggle DM welcome card\n"
                 "`,aesthetic dmtext <text>` — customize DM welcome text\n"
-                "`,aesthetic media #channel` — add media auto-react channel\n"
+                "`,aesthetic media #channel <emoji>` — set media channel & emoji\n"
                 "`,aesthetic embedonly #channel` — embed-only channel (Premium)\n"
-                "`,aesthetic autothread #channel` — auto-thread posts (Premium)\n"
                 "`,aesthetic autopin #channel` — auto-pin messages (Premium)\n"
                 "`,aesthetic milestone #channel` — milestone announce channel (Premium)"
             ),
@@ -527,7 +440,6 @@ class Aesthetic(commands.Cog):
     @aesthetic.command(name="color")
     @ctx_admin()
     async def aesthetic_color(self, ctx, hex_code: str = None):
-        """Set the server accent color used in bot embeds."""
         if not hex_code:
             return await ctx.reply("Usage: `,aesthetic color #FF5500`")
         try:
@@ -547,7 +459,6 @@ class Aesthetic(commands.Cog):
     @aesthetic.command(name="autorole")
     @ctx_admin()
     async def aesthetic_autorole(self, ctx, role: discord.Role = None):
-        """Set a role to auto-assign when members join."""
         if not role:
             await aesthetic_col.update_one(
                 {"guild_id": str(ctx.guild.id)},
@@ -568,7 +479,6 @@ class Aesthetic(commands.Cog):
     @aesthetic.command(name="dmwelcome")
     @ctx_admin()
     async def aesthetic_dmwelcome(self, ctx, status: str = None):
-        """Toggle DM welcome card when members join."""
         if not status or status.lower() not in ("on", "off"):
             return await ctx.reply("Usage: `,aesthetic dmwelcome on/off`")
         state = status.lower() == "on"
@@ -582,7 +492,6 @@ class Aesthetic(commands.Cog):
     @aesthetic.command(name="dmtext")
     @ctx_admin()
     async def aesthetic_dmtext(self, ctx, *, text: str = None):
-        """Set custom text for the DM welcome card."""
         if not text:
             return await ctx.reply("Usage: `,aesthetic dmtext Welcome to our server! Check #rules.`")
         if len(text) > 500:
@@ -599,30 +508,20 @@ class Aesthetic(commands.Cog):
 
     @aesthetic.command(name="media")
     @ctx_admin()
-    async def aesthetic_media(self, ctx, channel: discord.TextChannel = None):
-        """Toggle auto-react (❤️ 🔥) on images posted in a channel."""
-        if not channel:
-            return await ctx.reply("Usage: `,aesthetic media #channel`")
-        cfg = await aesthetic_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
-        ids = cfg.get("media_channels", [])
-        cid = str(channel.id)
-        if cid in ids:
-            ids.remove(cid)
-            msg = f"Auto-react removed from {channel.mention}."
-        else:
-            ids.append(cid)
-            msg = f"Auto-react enabled in {channel.mention}. Images will get ❤️ 🔥."
+    async def aesthetic_media(self, ctx, channel: discord.TextChannel = None, emoji: str = None):
+        if not channel or not emoji:
+            return await ctx.reply("Usage: `,aesthetic media #channel <emoji>`")
+        
         await aesthetic_col.update_one(
             {"guild_id": str(ctx.guild.id)},
-            {"$set": {"media_channels": ids}},
+            {"$set": {"media_channel_config": {"channel_id": str(channel.id), "emoji": emoji}}},
             upsert=True
         )
-        await ctx.reply(msg)
+        await ctx.reply(f"Auto-react configured in {channel.mention} with emoji {emoji}.")
 
     @aesthetic.command(name="embedonly")
     @ctx_admin()
     async def aesthetic_embedonly(self, ctx, channel: discord.TextChannel = None):
-        """Toggle embed-only mode in a channel. Plain text gets auto-deleted. (Premium)"""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Embed-only channels are a **Happy Premium** feature.",
@@ -646,37 +545,9 @@ class Aesthetic(commands.Cog):
         )
         await ctx.reply(msg)
 
-    @aesthetic.command(name="autothread")
-    @ctx_admin()
-    async def aesthetic_autothread(self, ctx, channel: discord.TextChannel = None):
-        """Auto-create a discussion thread on every message in a channel. (Premium)"""
-        if not await is_premium_server(ctx.guild.id):
-            return await ctx.reply(embed=discord.Embed(
-                description="Auto-thread is a **Happy Premium** feature.",
-                color=SILVER
-            ))
-        if not channel:
-            return await ctx.reply("Usage: `,aesthetic autothread #channel`")
-        cfg = await aesthetic_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
-        ids = cfg.get("auto_thread_channels", [])
-        cid = str(channel.id)
-        if cid in ids:
-            ids.remove(cid)
-            msg = f"Auto-thread removed from {channel.mention}."
-        else:
-            ids.append(cid)
-            msg = f"Auto-thread enabled in {channel.mention}. Every post will get a discussion thread."
-        await aesthetic_col.update_one(
-            {"guild_id": str(ctx.guild.id)},
-            {"$set": {"auto_thread_channels": ids}},
-            upsert=True
-        )
-        await ctx.reply(msg)
-
     @aesthetic.command(name="autopin")
     @ctx_admin()
     async def aesthetic_autopin(self, ctx, channel: discord.TextChannel = None):
-        """Auto-pin every message sent in a channel. (Premium)"""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Auto-pin is a **Happy Premium** feature.",
@@ -703,7 +574,6 @@ class Aesthetic(commands.Cog):
     @aesthetic.command(name="milestone")
     @ctx_admin()
     async def aesthetic_milestone(self, ctx, channel: discord.TextChannel = None):
-        """Set the channel for milestone announcements. (Premium)"""
         if not await is_premium_server(ctx.guild.id):
             return await ctx.reply(embed=discord.Embed(
                 description="Milestone announcements are a **Happy Premium** feature.",
@@ -725,18 +595,9 @@ class Aesthetic(commands.Cog):
             color=GOLD
         ))
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  PREMIUM — SERVER POLISH COMMAND (one-click aesthetic setup)
-    # ══════════════════════════════════════════════════════════════════════════
-
     @commands.command(aliases=["polish", "glow"])
     @ctx_admin()
     async def serverpolish(self, ctx):
-        """
-        One-click premium aesthetic setup.
-        Applies recommended settings for a polished server experience.
-        Premium servers get extra features activated automatically.
-        """
         is_prem = await is_premium_server(ctx.guild.id)
         color   = GOLD if is_prem else 0x2B2D31
         msg     = await ctx.reply(embed=discord.Embed(
@@ -745,7 +606,6 @@ class Aesthetic(commands.Cog):
         ))
         applied = []
 
-        # ── DM welcome on by default ───────────────────────────────────────
         await aesthetic_col.update_one(
             {"guild_id": str(ctx.guild.id)},
             {"$set": {"dm_welcome": True}},
@@ -753,25 +613,23 @@ class Aesthetic(commands.Cog):
         )
         applied.append("DM welcome card enabled")
 
-        # ── Auto-react in any channel named 'media', 'art', 'showcase' ────
-        media_chs = [
-            str(ch.id) for ch in ctx.guild.text_channels
-            if any(kw in ch.name for kw in ["media", "art", "showcase", "gallery", "fan-art"])
-        ]
-        if media_chs:
+        first_media_ch = next(
+            (ch for ch in ctx.guild.text_channels if any(kw in ch.name for kw in ["media", "art", "showcase", "gallery", "fan-art"])), 
+            None
+        )
+        if first_media_ch:
             await aesthetic_col.update_one(
                 {"guild_id": str(ctx.guild.id)},
-                {"$set": {"media_channels": media_chs}},
+                {"$set": {"media_channel_config": {"channel_id": str(first_media_ch.id), "emoji": "❤️"}}},
                 upsert=True
             )
-            applied.append(f"Auto-react in {len(media_chs)} media channel(s)")
+            applied.append(f"Auto-react in media channel: {first_media_ch.mention}")
 
         if is_prem:
-            # ── Color roles setup ──────────────────────────────────────────
             existing_doc = await color_roles_col.find_one({"guild_id": str(ctx.guild.id)})
             if not existing_doc:
                 created_roles = []
-                for name, hex_color in DEFAULT_COLORS[:6]:  # top 6 only
+                for name, hex_color in DEFAULT_COLORS[:6]:
                     role = discord.utils.get(ctx.guild.roles, name=f"✦ {name}")
                     if not role:
                         role = await ctx.guild.create_role(
@@ -788,20 +646,6 @@ class Aesthetic(commands.Cog):
                 )
                 applied.append(f"Color roles created ({len(created_roles)} colors)")
 
-            # ── Auto-thread in announcement channels ───────────────────────
-            ann_chs = [
-                str(ch.id) for ch in ctx.guild.text_channels
-                if any(kw in ch.name for kw in ["announcement", "news", "update"])
-            ]
-            if ann_chs:
-                await aesthetic_col.update_one(
-                    {"guild_id": str(ctx.guild.id)},
-                    {"$set": {"auto_thread_channels": ann_chs}},
-                    upsert=True
-                )
-                applied.append(f"Auto-thread in {len(ann_chs)} announcement channel(s)")
-
-            # ── Milestone channel (use welcome channel if set) ─────────────
             gs = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
             if gs.get("welcome_channel"):
                 await aesthetic_col.update_one(
@@ -811,7 +655,6 @@ class Aesthetic(commands.Cog):
                 )
                 applied.append("Milestone announcements configured")
 
-        # ── Final result embed ─────────────────────────────────────────────
         result = discord.Embed(
             title="Server Polish Complete" + (" ✦" if is_prem else ""),
             color=color,
@@ -826,7 +669,6 @@ class Aesthetic(commands.Cog):
                 name="Premium Features Active",
                 value=(
                     "Color roles — `,color pick <name>`\n"
-                    "Auto-thread on announcements\n"
                     "Milestone announcements\n"
                     "DM welcome cards"
                 ),
@@ -836,7 +678,7 @@ class Aesthetic(commands.Cog):
             result.add_field(
                 name="Upgrade to Premium",
                 value=(
-                    "Premium servers get color roles, auto-thread,\n"
+                    "Premium servers get color roles,\n"
                     "milestone cards, embed-only channels and more.\n"
                     "Contact the bot owner to activate."
                 ),
@@ -844,7 +686,6 @@ class Aesthetic(commands.Cog):
             )
         result.set_footer(text="Happy · Aesthetic System")
         await msg.edit(embed=result)
-
 
 async def setup(bot):
     await bot.add_cog(Aesthetic(bot))

@@ -66,16 +66,16 @@ class Admin(commands.Cog):
 
         def _ch(key):
             cid = gs.get(key)
-            return f"<#{cid}>" if cid else "❌ Not Configured"
+            return f"<#{cid}>" if cid else "❌ Not Setup"
 
         def _on(key):
-            return "🟢 Enabled" if gs.get(key) else "🔴 Disabled"
+            return "🟢 On" if gs.get(key) else "🔴 Off"
 
         is_prem = await is_premium_server(ctx.guild.id)
-        log_ch = f"<#{log_cfg['channel_id']}>" if log_cfg.get("channel_id") else "❌ Not Configured"
+        log_ch = f"<#{log_cfg['channel_id']}>" if log_cfg.get("channel_id") else "❌ Not Setup"
 
         embed = discord.Embed(
-            title=f"📊 Server Configuration — {ctx.guild.name}",
+            title=f"📊 Server Settings — {ctx.guild.name}",
             color=0x2B2D31,
             timestamp=datetime.now(timezone.utc)
         )
@@ -93,35 +93,35 @@ class Admin(commands.Cog):
             inline=True
         )
         embed.add_field(
-            name="📜 Logging",
+            name="📜 Logs",
             value=f"**Channel:** {log_ch}",
             inline=True
         )
         embed.add_field(
-            name="🛡️ Moderation",
-            value=f"**Anti-Invite:** {_on('invite_block')}\n**Jail System:** {'🟢 Configured' if gs.get('jail_role_id') else '❌ Not Configured'}",
+            name="🛡️ Security",
+            value=f"**Block Invites:** {_on('invite_block')}\n**Jail System:** {'🟢 Ready' if gs.get('jail_role_id') else '❌ Not Setup'}",
             inline=True
         )
         embed.add_field(
-            name="✨ Automation",
-            value=f"**Level Messages:** {'🟢 Enabled' if gs.get('levels_enabled', True) else '🔴 Disabled'}\n**Auto Reactions:** {'🟢 Enabled' if gs.get('reactions_enabled', True) else '🔴 Disabled'}",
+            name="✨ Extras",
+            value=f"**Level Alerts:** {'🟢 On' if gs.get('levels_enabled', True) else '🔴 Off'}\n**Auto Reactions:** {'🟢 On' if gs.get('reactions_enabled', True) else '🔴 Off'}",
             inline=True
         )
         embed.add_field(
-            name="🎫 Ticket System",
-            value=f"**Total Tickets:** `{ticket_cfg.get('ticket_count', 0)}`\n**Staff Role:** {'🟢 Set' if ticket_cfg.get('staff_role_id') else '❌ Not Set'}",
+            name="🎫 Tickets",
+            value=f"**Total Open:** `{ticket_cfg.get('ticket_count', 0)}`\n**Staff Role:** {'🟢 Set' if ticket_cfg.get('staff_role_id') else '❌ Not Set'}",
             inline=True
         )
         embed.add_field(
-            name="💎 Premium Perks",
-            value=f"**Bump Reminder:** {'🟢 Enabled' if bump_cfg and bump_cfg.get('enabled') else '🔴 Disabled'}\n**VoiceMaster:** {'🟢 Configured' if vc_cfg else '❌ Not Configured'}\n**Counters:** {counter_list}",
+            name="💎 Premium Features",
+            value=f"**Bump Alert:** {'🟢 On' if bump_cfg and bump_cfg.get('enabled') else '🔴 Off'}\n**VoiceMaster:** {'🟢 Ready' if vc_cfg else '❌ Not Setup'}\n**Counters:** {counter_list}",
             inline=False
         )
-        embed.add_field(name="🚫 Disabled Commands", value=dis_list, inline=False)
-        embed.set_footer(text=f"ID: {gid} • Type ,help for more details")
+        embed.add_field(name="🚫 Off Commands", value=dis_list, inline=False)
+        embed.set_footer(text=f"Server ID: {gid} • Type ,help for info")
         await ctx.reply(embed=embed)
 
-    @app_commands.command(name="settings", description="View server configuration dashboard")
+    @app_commands.command(name="settings", description="View server settings dashboard")
     @app_commands.checks.has_permissions(administrator=True)
     async def slash_settings(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -129,11 +129,11 @@ class Admin(commands.Cog):
         gs = await settings_col.find_one({"_id": gid}) or {}
         is_prem = await is_premium_server(interaction.guild.id)
         
-        embed = discord.Embed(title=f"📊 Settings Overview — {interaction.guild.name}", color=0x2B2D31)
+        embed = discord.Embed(title=f"📊 Settings — {interaction.guild.name}", color=0x2B2D31)
         embed.add_field(name="Prefix", value=f"`{gs.get('prefix', ',')}`", inline=True)
         embed.add_field(name="Premium", value="💎 Yes" if is_prem else "❌ No", inline=True)
-        embed.add_field(name="Welcome System", value="🟢 Enabled" if gs.get("welcome_enabled") else "🔴 Disabled", inline=True)
-        embed.set_footer(text="Run the text command ,settings for full configuration options")
+        embed.add_field(name="Welcome System", value="🟢 On" if gs.get("welcome_enabled") else "🔴 Off", inline=True)
+        embed.set_footer(text="Use text command ,settings for all options")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @commands.group(invoke_without_command=True)
@@ -144,17 +144,17 @@ class Admin(commands.Cog):
         pp = personal.get("prefix") if personal else None
         is_prem = await is_premium_user(ctx.author.id) or await is_premium_server(ctx.guild.id)
 
-        embed = discord.Embed(title="⚙️ Custom Prefix Controls", color=0x2B2D31)
+        embed = discord.Embed(title="⚙️ Prefix Settings", color=0x2B2D31)
         embed.add_field(name="Server Default", value=f"`{current}`", inline=True)
-        embed.add_field(name="Personal Prefix", value=f"`{pp}`" if pp else "`None`", inline=True)
-        embed.add_field(name="Premium Access", value="💎 Activated" if is_prem else "❌ Standard", inline=True)
+        embed.add_field(name="Your Prefix", value=f"`{pp}`" if pp else "`None`", inline=True)
+        embed.add_field(name="Premium status", value="💎 Active" if is_prem else "❌ Regular", inline=True)
         embed.add_field(
-            name="Available Setup Commands",
+            name="Commands",
             value=(
-                "`,prefix set <symbol>` — Configure global server prefix\n"
-                "`,prefix remove` — Revert default prefix back to `,`\n"
-                "`,prefix self <symbol>` — Bind personal prefix globally\n"
-                "`,prefix selfremove` — Discard personal custom prefix"
+                "`,prefix set <symbol>` — Change server prefix\n"
+                "`,prefix remove` — Reset server prefix to `,`\n"
+                "`,prefix self <symbol>` — Set your own personal prefix\n"
+                "`,prefix selfremove` — Remove your personal prefix"
             ),
             inline=False
         )
@@ -164,16 +164,16 @@ class Admin(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def prefix_set(self, ctx, new_prefix: str = None):
         if not new_prefix:
-            return await ctx.reply("❌ Provide a symbol: `,prefix set <symbol>`")
+            return await ctx.reply("❌ Use: `,prefix set <symbol>`")
         if len(new_prefix) > 3:
-            return await ctx.reply("❌ Maximum length allowed for prefixes is 3 characters.")
+            return await ctx.reply("❌ Prefix cannot be longer than 3 characters.")
         if new_prefix in ("<", ">", "@", "#"):
-            return await ctx.reply("❌ Selected prefix is reserved by Discord markdown syntax rules.")
+            return await ctx.reply("❌ You cannot use those characters as a prefix.")
         await settings_col.update_one(
             {"_id": str(ctx.guild.id)}, {"$set": {"prefix": new_prefix}}, upsert=True
         )
-        await ctx.reply(f"🟢 Server default prefix updated successfully to `{new_prefix}`")
-        await log_event(self.bot, ctx.guild, "prefix_change", f"{ctx.author} updated guild prefix to `{new_prefix}`")
+        await ctx.reply(f"🟢 Server prefix changed to `{new_prefix}`")
+        await log_event(self.bot, ctx.guild, "prefix_change", f"{ctx.author} changed prefix to `{new_prefix}`")
 
     @prefix.command(name="remove")
     @commands.has_permissions(administrator=True)
@@ -181,24 +181,24 @@ class Admin(commands.Cog):
         await settings_col.update_one(
             {"_id": str(ctx.guild.id)}, {"$unset": {"prefix": ""}}, upsert=True
         )
-        await ctx.reply("🟢 Server default prefix successfully reverted back to `,`")
+        await ctx.reply("🟢 Server prefix reset back to `,`")
 
     @prefix.command(name="self")
     @ctx_premium()
     async def prefix_self(self, ctx, new_prefix: str = None):
         if not new_prefix:
-            return await ctx.reply("❌ Provide a symbol: `,prefix self <symbol>`")
+            return await ctx.reply("❌ Use: `,prefix self <symbol>`")
         if len(new_prefix) > 3:
-            return await ctx.reply("❌ Personal global prefixes are constrained to 3 characters max.")
+            return await ctx.reply("❌ Personal prefix cannot be longer than 3 characters.")
         await personal_prefix_col.update_one(
             {"user_id": str(ctx.author.id)}, {"$set": {"prefix": new_prefix}}, upsert=True
         )
-        await ctx.reply(f"💎 Personal global prefix established across all networks to `{new_prefix}`")
+        await ctx.reply(f"💎 Your personal prefix is now `{new_prefix}`")
 
     @prefix.command(name="selfremove")
     async def prefix_selfremove(self, ctx):
         result = await personal_prefix_col.delete_one({"user_id": str(ctx.author.id)})
-        await ctx.reply("🟢 Global personal prefix cleared successfully." if result.deleted_count else "❌ No active personal prefix configurations found.")
+        await ctx.reply("🟢 Personal prefix removed." if result.deleted_count else "❌ You don't have a personal prefix set.")
 
     @commands.command()
     @ctx_mod()
@@ -208,26 +208,26 @@ class Admin(commands.Cog):
                 content = channel.name
                 channel = None
             else:
-                return await ctx.reply("❌ Syntax template: `,announce [#channel] <content>`\n💡 Appending `--ping` references `@everyone` roles.")
+                return await ctx.reply("❌ Use: `,announce [#channel] <content>`\n💡 Add `--ping` to alert everyone.")
 
         ping = "--ping" in content
         content = content.replace("--ping", "").strip()
         if not content:
-            return await ctx.reply("❌ Announcement messaging values cannot be left blank.")
+            return await ctx.reply("❌ Announcement content cannot be empty.")
 
         target = channel or ctx.channel
         embed = discord.Embed(description=content, color=0x2B2D31, timestamp=datetime.now(timezone.utc))
         embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
-        embed.set_footer(text=f"Broadcaster: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"By: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
         
         await target.send(content="@everyone" if ping else None, embed=embed)
         if target != ctx.channel:
-            await ctx.reply(f"🟢 Dispatch completed to network pipeline: {target.mention}", delete_after=5)
+            await ctx.reply(f"🟢 Announcement sent to {target.mention}", delete_after=5)
         try:
             await ctx.message.delete()
         except:
             pass
-        await log_event(self.bot, ctx.guild, "announcement", f"{ctx.author} processed embed dispatch to channel {target.mention}. Flagged Ping: {ping}")
+        await log_event(self.bot, ctx.guild, "announcement", f"{ctx.author} sent announcement to {target.mention}. Ping: {ping}")
 
     @app_commands.command(name="announce", description="Send a server announcement")
     @app_commands.checks.has_permissions(manage_messages=True)
@@ -247,38 +247,38 @@ class Admin(commands.Cog):
             embed_color = 0x2B2D31
         embed = discord.Embed(title=title, description=description, color=embed_color, timestamp=datetime.now(timezone.utc))
         embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-        embed.set_footer(text=f"Broadcaster: {interaction.user.display_name}")
+        embed.set_footer(text=f"By: {interaction.user.display_name}")
         await target.send(content="@everyone" if ping_everyone else None, embed=embed)
-        await interaction.response.send_message(f"🟢 Dispatched successfully to {target.mention}", ephemeral=True)
+        await interaction.response.send_message(f"🟢 Announcement sent to {target.mention}", ephemeral=True)
 
     @commands.group(invoke_without_command=True)
     @ctx_mod()
     async def giveaway(self, ctx, duration: str = None, winners: int = 1, *, prize: str = None):
         if not duration or not prize:
-            embed = discord.Embed(title="🎉 Giveaway Utilities Panel", color=0x2B2D31)
+            embed = discord.Embed(title="🎉 Giveaway Setup", color=0x2B2D31)
             embed.add_field(
-                name="Initialization Parameter Rules",
+                name="How to start",
                 value=(
                     "`,giveaway <duration> <winners> <prize>`\n"
-                    "Formats: `30m` | `2h` | `1d` \n\n"
-                    "**Conditional Criteria Arguments:**\n"
-                    "`--msgs <count>` — Validates message historical metrics\n"
-                    "`--invites <count>` — Validates invitation metrics\n\n"
-                    "💡 *E.g.: `,giveaway 1h 1 Nitro Classic --msgs 50 --invites 2`*"
+                    "Time formats: `30m`, `2h`, `1d` \n\n"
+                    "**Requirements (Optional):**\n"
+                    "`--msgs <count>` — Minimum chat messages needed\n"
+                    "`--invites <count>` — Minimum invites needed\n\n"
+                    "💡 *Example: `,giveaway 1h 1 Nitro --msgs 50 --invites 2`*"
                 ),
                 inline=False
             )
-            embed.add_field(name="Terminate Early", value="`,giveaway end <message_id>`", inline=True)
-            embed.add_field(name="Draw New Winners", value="`,giveaway reroll <message_id>`", inline=True)
+            embed.add_field(name="End Early", value="`,giveaway end <message_id>`", inline=True)
+            embed.add_field(name="Reroll Winners", value="`,giveaway reroll <message_id>`", inline=True)
             return await ctx.reply(embed=embed)
 
         minutes = self._parse_duration(duration)
         if minutes is None:
-            return await ctx.reply("❌ Invalid format template used. Examples include: `15m`, `4h`, `7d`.")
+            return await ctx.reply("❌ Invalid time format. Use: `15m`, `4h`, `7d`.")
         if minutes < 1:
-            return await ctx.reply("❌ Giveaway scheduling lower bounds must exceed 1 minute intervals.")
+            return await ctx.reply("❌ Giveaway must last at least 1 minute.")
         if minutes > 43200:
-            return await ctx.reply("❌ Giveaways cannot stretch past a 30-day temporal hard boundary limit.")
+            return await ctx.reply("❌ Giveaway cannot last longer than 30 days.")
 
         min_msgs = 0
         min_invites = 0
@@ -295,27 +295,27 @@ class Admin(commands.Cog):
 
         prize = prize.strip()
         if not prize:
-            return await ctx.reply("❌ Giveaway descriptions and target prize indexes cannot be left blank.")
+            return await ctx.reply("❌ Giveaway prize cannot be blank.")
 
         end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         ts = int(end_time.timestamp())
 
-        desc_lines = ["React with 🎉 to participate!", ""]
+        desc_lines = ["React with 🎉 to enter!", ""]
         desc_lines.append(f"🏆 **Winners:** {winners}")
-        desc_lines.append(f"⏱️ **Closing window:** <t:{ts}:R> (<t:{ts}:f>)")
+        desc_lines.append(f"⏱️ **Ends:** <t:{ts}:R> (<t:{ts}:f>)")
 
         if min_msgs or min_invites:
             desc_lines.append("")
-            desc_lines.append("⚠️ **Participation Criteria requirements:**")
+            desc_lines.append("⚠️ **Requirements to Win:**")
             if min_msgs:
-                desc_lines.append(f"• Active server metric counters: **{min_msgs}** messages minimum")
+                desc_lines.append(f"• Must have at least **{min_msgs}** messages")
             if min_invites:
-                desc_lines.append(f"• Invite conversion track records: **{min_invites}** users minimal")
+                desc_lines.append(f"• Must have at least **{min_invites}** invites")
 
-        embed = discord.Embed(title=f"🎁 Active Giveaway: {prize}", description="\n".join(desc_lines), color=0x2B2D31)
-        footer_parts = [f"Organizer: {ctx.author.display_name}", f"{winners} Slot allocations"]
+        embed = discord.Embed(title=f"🎁 Giveaway: {prize}", description="\n".join(desc_lines), color=0x2B2D31)
+        footer_parts = [f"Hosted by: {ctx.author.display_name}", f"{winners} Winners"]
         if min_msgs:
-            footer_parts.append(f"{min_msgs}+ Required msgs")
+            footer_parts.append(f"{min_msgs}+ Messages required")
         if min_invites:
             footer_parts.append(f"{min_invites}+ Invites required")
         embed.set_footer(text=" • ".join(footer_parts), icon_url=ctx.author.display_avatar.url)
@@ -345,48 +345,48 @@ class Admin(commands.Cog):
     @ctx_mod()
     async def giveaway_end(self, ctx, message_id: int = None):
         if not message_id:
-            return await ctx.reply("❌ Execution syntax missing arguments: `,giveaway end <message_id>`")
+            return await ctx.reply("❌ Use: `,giveaway end <message_id>`")
         doc = await giveaways_col.find_one({"message_id": str(message_id), "status": "active"})
         if not doc:
-            return await ctx.reply("❌ Target giveaway tracker records show up empty or finalized.")
+            return await ctx.reply("❌ Giveaway not found or already ended.")
         channel = self.bot.get_channel(int(doc["channel_id"])) or ctx.channel
         await self._end_giveaway(channel, message_id)
-        await ctx.reply("🟢 Target giveaway tracker stream successfully shifted into final states.", delete_after=4)
+        await ctx.reply("🟢 Giveaway ended.", delete_after=4)
 
     @giveaway.command(name="reroll")
     @ctx_mod()
     async def giveaway_reroll(self, ctx, message_id: int = None):
         if not message_id:
-            return await ctx.reply("❌ Execution syntax missing arguments: `,giveaway reroll <message_id>`")
+            return await ctx.reply("❌ Use: `,giveaway reroll <message_id>`")
         data = await giveaways_col.find_one({"message_id": str(message_id)})
         if not data:
-            return await ctx.reply("❌ Target entry records not cached in current dataset tables.")
+            return await ctx.reply("❌ Giveaway data not found.")
         try:
             msg = await ctx.channel.fetch_message(message_id)
             reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
             if not reaction:
-                return await ctx.reply("❌ Reactant verification mechanisms tracking missing structural assets.")
+                return await ctx.reply("❌ Could not find reactions on that message.")
             users = [u async for u in reaction.users() if not u.bot]
             if not users:
-                return await ctx.reply("❌ Valid applicant indexes contain zero candidate targets.")
+                return await ctx.reply("❌ Nobody entered the giveaway.")
 
             eligible = await self._filter_eligible(ctx.guild, users, data.get("min_msgs", 0), data.get("min_invites", 0))
             if not eligible:
-                return await ctx.reply("❌ Valid criteria evaluations matched zero candidates from physical records pools.")
+                return await ctx.reply("❌ No users match the giveaway requirements.")
 
             chosen = random.sample(eligible, min(data["winners"], len(eligible)))
             mentions = ", ".join(w.mention for w in chosen)
             
             reroll_embed = discord.Embed(
-                title="✨ Giveaway Draw Reroll complete",
-                description=f"🎉 **Prize pool target:** **{data['prize']}**\n🏆 **Newly selected winner slots:** {mentions}",
+                title="✨ New Winners Drawn",
+                description=f"🎉 **Prize:** **{data['prize']}**\n🏆 **Winners:** {mentions}",
                 color=0x2B2D31
             )
             await ctx.reply(embed=reroll_embed)
         except discord.NotFound:
-            await ctx.reply("❌ Message identifier metrics trace no path inside this channel.")
+            await ctx.reply("❌ Message not found in this channel.")
         except Exception as e:
-            await ctx.reply(f"❌ Structural breakdown event noted inside logic block parameters: {e}")
+            await ctx.reply(f"❌ An error occurred: {e}")
 
     async def _filter_eligible(self, guild, users, min_msgs, min_invites):
         if not min_msgs and not min_invites:
@@ -422,7 +422,7 @@ class Admin(commands.Cog):
 
         reaction = next((r for r in msg.reactions if str(r.emoji) == "🎉"), None)
         if not reaction:
-            no_entry = discord.Embed(title="🛑 Giveaway Finalized", description=f"**Prize pool:** **{data['prize']}**\n\n❌ Metrics tracking index records zero entrants.", color=0x2B2D31)
+            no_entry = discord.Embed(title="🛑 Giveaway Ended", description=f"**Prize:** **{data['prize']}**\n\n❌ Nobody entered the giveaway.", color=0x2B2D31)
             try:
                 await msg.edit(embed=no_entry)
             except:
@@ -432,7 +432,7 @@ class Admin(commands.Cog):
 
         reactors = [u async for u in reaction.users() if not u.bot]
         if not reactors:
-            no_entry = discord.Embed(title="🛑 Giveaway Finalized", description=f"**Prize pool:** **{data['prize']}**\n\n❌ Metrics verification profiles record zero valid assets.", color=0x2B2D31)
+            no_entry = discord.Embed(title="🛑 Giveaway Ended", description=f"**Prize:** **{data['prize']}**\n\n❌ No valid users entered.", color=0x2B2D31)
             try:
                 await msg.edit(embed=no_entry)
             except:
@@ -452,8 +452,8 @@ class Admin(commands.Cog):
             if min_invites:
                 cond_parts.append(f"{min_invites}+ invites")
             no_win_embed = discord.Embed(
-                title="🛑 Giveaway Finalized — Requirements Missed",
-                description=f"**Prize pool:** **{data['prize']}**\n\n❌ Condition checklist values unmet: {' and '.join(cond_parts)}\n📉 Total Pool Candidates: `{len(reactors)}` | Passed Filters: `0`",
+                title="🛑 Giveaway Ended — No Winners",
+                description=f"**Prize:** **{data['prize']}**\n\n❌ Nobody met the requirements: {' and '.join(cond_parts)}\n📊 Total entries: `{len(reactors)}` | Passed: `0`",
                 color=0x2B2D31
             )
             try:
@@ -466,18 +466,18 @@ class Admin(commands.Cog):
         chosen = random.sample(eligible, min(data["winners"], len(eligible)))
         mentions = ", ".join(w.mention for w in chosen)
 
-        result_lines = [f"**Prize pool:** **{data['prize']}**", f"🏆 **Winner roster selections:** {mentions}"]
+        result_lines = [f"**Prize:** **{data['prize']}**", f"🏆 **Winners:** {mentions}"]
         if min_msgs or min_invites:
             cond_parts = []
             if min_msgs:
                 cond_parts.append(f"{min_msgs}+ msgs")
             if min_invites:
                 cond_parts.append(f"{min_invites}+ invites")
-            result_lines.append(f"⚙️ **Criteria parameters:** {', '.join(cond_parts)}")
-            result_lines.append(f"📊 **Filtering verification metrics:** `{len(eligible)}/{len(reactors)}` verified entries")
+            result_lines.append(f"⚙️ **Requirements:** {', '.join(cond_parts)}")
+            result_lines.append(f"📊 **Stats:** `{len(eligible)}/{len(reactors)}` passed checks")
 
-        new_embed = discord.Embed(title="🎉 Giveaway Finalized Results", description="\n".join(result_lines), color=0x2B2D31)
-        new_embed.set_footer(text="Run command: ,giveaway reroll <id> to redistribute allocations")
+        new_embed = discord.Embed(title="🎉 Giveaway Results", description="\n".join(result_lines), color=0x2B2D31)
+        new_embed.set_footer(text="Use command: ,giveaway reroll <id> to pick new winners")
 
         try:
             await msg.edit(embed=new_embed)
@@ -485,14 +485,14 @@ class Admin(commands.Cog):
             pass
 
         win_announcement = discord.Embed(
-            description=f"✨ **Congratulations** {mentions}! You successfully claimed ownership allocations over **{data['prize']}**!",
+            description=f"✨ **Congratulations** {mentions}! You won **{data['prize']}**!",
             color=0x2B2D31
         )
         await channel.send(content=mentions, embed=win_announcement)
 
         if disqualified_count:
             disq_embed = discord.Embed(
-                description=f"ℹ️ `{disqualified_count}` entry profiles failed parameters validation checking passes and were pruned from selection pools.",
+                description=f"ℹ️ `{disqualified_count}` users were removed from the draw because they didn't meet the requirements.",
                 color=0x2B2D31
             )
             await channel.send(embed=disq_embed, delete_after=30)
@@ -509,24 +509,24 @@ class Admin(commands.Cog):
     @ctx_mod()
     async def slowmode(self, ctx, seconds: int = None, channel: discord.TextChannel = None):
         if seconds is None:
-            return await ctx.reply("❌ Usage guideline blueprint: `,slowmode <seconds> [#channel]`\n💡 Send `0` to kill cooldown timers. Upper constraint limit matches `21600`.")
+            return await ctx.reply("❌ Use: `,slowmode <seconds> [#channel]`\n💡 Set to `0` to turn it off. Max is `21600` seconds.")
         if not 0 <= seconds <= 21600:
-            return await ctx.reply("❌ Target constraints must exist inside 0 to 21600 bounds configurations.")
+            return await ctx.reply("❌ Time must be between 0 and 21600 seconds.")
         target = channel or ctx.channel
         await target.edit(slowmode_delay=seconds)
-        status_msg = "🔓 Cooldown timers deactivated" if seconds == 0 else f"⏳ Rate limiting thresholds locked down to **{seconds}s**"
-        await ctx.reply(f"🟢 {status_msg} inside target pipeline: {target.mention}")
-        await log_event(self.bot, ctx.guild, "slowmode", f"{ctx.author} shifted channel slowmode bounds parameters to {seconds}s in #{target.name}")
+        status_msg = "🔓 Slowmode turned off" if seconds == 0 else f"⏳ Slowmode set to **{seconds}s**"
+        await ctx.reply(f"🟢 {status_msg} in {target.mention}")
+        await log_event(self.bot, ctx.guild, "slowmode", f"{ctx.author} set slowmode to {seconds}s in #{target.name}")
 
     @app_commands.command(name="slowmode", description="Set channel slowmode delay")
     @app_commands.checks.has_permissions(manage_channels=True)
     async def slash_slowmode(self, interaction: discord.Interaction, seconds: int, channel: discord.TextChannel = None):
         if not 0 <= seconds <= 21600:
-            return await interaction.response.send_message("❌ Target parameter boundaries constraint matching: 0–21600 max.", ephemeral=True)
+            return await interaction.response.send_message("❌ Time must be between 0 and 21600 seconds.", ephemeral=True)
         target = channel or interaction.channel
         await target.edit(slowmode_delay=seconds)
-        status_msg = "🔓 Channels cooldown tracking drops out" if seconds == 0 else f"⏳ Channels operations locked down onto a {seconds}s interface latency delay"
-        await interaction.response.send_message(f"🟢 {status_msg} inside structural targets: {target.mention}", ephemeral=True)
+        status_msg = "🔓 Slowmode turned off" if seconds == 0 else f"⏳ Slowmode set to **{seconds}s**"
+        await interaction.response.send_message(f"🟢 {status_msg} in {target.mention}", ephemeral=True)
 
     _protected_cmds = {"settings", "prefix", "disable", "enable", "help", "premium", "maintenance", "aimode", "sync"}
 
@@ -536,35 +536,35 @@ class Admin(commands.Cog):
         if not cmd_name:
             docs = await disabled_cmds_col.find({"guild_id": str(ctx.guild.id)}).to_list(50)
             names = [d["command_name"] for d in docs]
-            embed = discord.Embed(title="🚫 Blocked Processing Modules", color=0x2B2D31)
+            embed = discord.Embed(title="🚫 Disabled Commands", color=0x2B2D31)
             embed.description = (
-                f"**Active disabled blocklist:** {', '.join(f'`{n}`' for n in names) if names else '`Empty`'}\n\n"
-                "⚙️ `,disable <module>` — Drop command usability bindings\n"
-                "⚙️ `,enable <module>` — Restore access permissions flags"
+                f"**Currently Disabled:** {', '.join(f'`{n}`' for n in names) if names else '`None`'}\n\n"
+                "⚙️ `,disable <command>` — Turn off a command\n"
+                "⚙️ `,enable <command>` — Turn on a command"
             )
             return await ctx.reply(embed=embed)
 
         cmd_name = cmd_name.lower().strip()
         if cmd_name in self._protected_cmds:
-            return await ctx.reply(f"❌ Safety lockouts defend protected engine module blocks: `{cmd_name}` cannot be isolated.")
+            return await ctx.reply(f"❌ You cannot disable the `{cmd_name}` command.")
         if not self.bot.get_command(cmd_name):
-            return await ctx.reply(f"❌ Module configuration matching maps nothing to name index: `{cmd_name}`")
+            return await ctx.reply(f"❌ Command not found: `{cmd_name}`")
         await disabled_cmds_col.update_one(
             {"guild_id": str(ctx.guild.id), "command_name": cmd_name},
             {"$set": {"guild_id": str(ctx.guild.id), "command_name": cmd_name}},
             upsert=True
         )
-        await ctx.reply(f"🟢 Successfully restricted engine module availability: Locked access to `{cmd_name}`")
+        await ctx.reply(f"🟢 Disabled the `{cmd_name}` command.")
 
     @commands.command(name="enable")
     @commands.has_permissions(administrator=True)
     async def enable_command(self, ctx, *, cmd_name: str = None):
         if not cmd_name:
-            return await ctx.reply("❌ Missing functional arguments tracking: `,enable <command_name>`")
+            return await ctx.reply("❌ Use: `,enable <command_name>`")
         result = await disabled_cmds_col.delete_one(
             {"guild_id": str(ctx.guild.id), "command_name": cmd_name.lower().strip()}
         )
-        await ctx.reply(f"🟢 Access restrictions successfully lifted from module: `{cmd_name}`" if result.deleted_count else f"❌ Command system verification notes module was never restricted: `{cmd_name}`")
+        await ctx.reply(f"🟢 Enabled the `{cmd_name}` command." if result.deleted_count else f"❌ That command wasn't disabled: `{cmd_name}`")
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
@@ -574,7 +574,7 @@ class Admin(commands.Cog):
             {"guild_id": str(ctx.guild.id), "command_name": ctx.command.name}
         )
         if doc:
-            await ctx.reply(f"❌ Access Denied: Module `{ctx.command.name}` has been deactivated inside this network zone.", delete_after=6)
+            await ctx.reply(f"❌ Access Denied: The `{ctx.command.name}` command is disabled in this server.", delete_after=6)
             raise commands.DisabledCommand()
 
     @commands.command()
@@ -584,9 +584,9 @@ class Admin(commands.Cog):
             gs = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
             rid = gs.get("premium_role_id")
             cur = ctx.guild.get_role(rid) if rid else None
-            return await ctx.reply(f"💎 Current verification role anchor: {cur.mention if cur else '`Not configured`'}\n⚙️ Update structure: `,premiumrole @role`")
+            return await ctx.reply(f"💎 Current Premium Role: {cur.mention if cur else '`Not setup`'}\n⚙️ Use: `,premiumrole @role`")
         await update_server_data(ctx.guild.id, "premium_role_id", role.id)
-        await ctx.reply(f"🟢 Functional database updates processed: {role.mention} successfully linked to AI priority pipelines.")
+        await ctx.reply(f"🟢 Premium role updated to {role.mention}")
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
@@ -611,7 +611,7 @@ class Admin(commands.Cog):
     @ctx_mod()
     async def topic(self, ctx, *, text: str = None):
         await ctx.channel.edit(topic=text or "")
-        await ctx.reply(f"🟢 Pipeline system topic mapping successfully {'modified' if text else 'cleared'}.", delete_after=5)
+        await ctx.reply(f"🟢 Channel topic {'updated' if text else 'cleared'}.", delete_after=5)
         try:
             await ctx.message.delete()
         except:
@@ -621,11 +621,11 @@ class Admin(commands.Cog):
     @ctx_mod()
     async def rename(self, ctx, *, name: str = None):
         if not name:
-            return await ctx.reply("❌ Missing label string variables: `,rename <new_name>`")
+            return await ctx.reply("❌ Use: `,rename <new_name>`")
         old = ctx.channel.name
         await ctx.channel.edit(name=name)
-        await ctx.reply(f"🟢 Pipeline routing label remapped: `{old}` → `{name}`")
-        await log_event(self.bot, ctx.guild, "channel_rename", f"{ctx.author} updated channel title string tracking mapping: #{old} to #{name}")
+        await ctx.reply(f"🟢 Channel renamed: `{old}` → `{name}`")
+        await log_event(self.bot, ctx.guild, "channel_rename", f"{ctx.author} renamed channel from #{old} to #{name}")
 
     @commands.command()
     @ctx_owner()
@@ -633,13 +633,13 @@ class Admin(commands.Cog):
         if not hasattr(self.bot, "maintenance"):
             self.bot.maintenance = False
         if not status:
-            state = "🟢 ACTIVE" if self.bot.maintenance else "🔴 INACTIVE"
-            return await ctx.reply(f"⚙️ Operational System Maintenance Status: {state}")
+            state = "🟢 ON" if self.bot.maintenance else "🔴 OFF"
+            return await ctx.reply(f"⚙️ Maintenance Mode Status: {state}")
         self.bot.maintenance = status.lower() in ("on", "true", "1", "yes")
         state = "🟢 ACTIVATED" if self.bot.maintenance else "🔴 DEACTIVATED"
         
         m_embed = discord.Embed(
-            description=f"🔧 Core Engine Infrastructure Flags Shifted: Maintenance status now marks as **{state}**",
+            description=f"🔧 Maintenance status changed to **{state}**",
             color=0x2B2D31
         )
         await ctx.reply(embed=m_embed)
@@ -651,9 +651,9 @@ class Admin(commands.Cog):
         current = gs.get("levels_enabled", True)
 
         if not status:
-            state = "🟢 ACTIVE" if current else "🔴 INACTIVE"
+            state = "🟢 ON" if current else "🔴 OFF"
             return await ctx.reply(embed=discord.Embed(
-                description=f"📊 Level Up Announcement alerts are currently marked as: **{state}**\n💡 Alter flags via: `,togglelevels on/off`",
+                description=f"📊 Level Alerts are currently: **{state}**\n💡 Use: `,togglelevels on/off`",
                 color=0x2B2D31
             ))
 
@@ -663,8 +663,8 @@ class Admin(commands.Cog):
             {"$set": {"levels_enabled": new_state}},
             upsert=True
         )
-        state = "🟢 ACTIVE" if new_state else "🔴 SILENT"
-        await ctx.reply(embed=discord.Embed(description=f"🟢 Server tracking configurations updated: User level conversions alerts are now **{state}**", color=0x2B2D31))
+        state = "🟢 ON" if new_state else "🔴 MUTED"
+        await ctx.reply(embed=discord.Embed(description=f"🟢 Level up alerts are now **{state}**", color=0x2B2D31))
 
     @commands.command()
     @commands.has_permissions(manage_guild=True)
@@ -673,9 +673,9 @@ class Admin(commands.Cog):
         current = gs.get("reactions_enabled", True)
 
         if not status:
-            state = "🟢 ACTIVE" if current else "🔴 INACTIVE"
+            state = "🟢 ON" if current else "🔴 OFF"
             return await ctx.reply(embed=discord.Embed(
-                description=f"✨ Auto greeting interactive responses are currently marked as: **{state}**\n💡 Alter flags via: `,togglereactions on/off`",
+                description=f"✨ Auto Reactions are currently: **{state}**\n💡 Use: `,togglereactions on/off`",
                 color=0x2B2D31
             ))
 
@@ -685,8 +685,8 @@ class Admin(commands.Cog):
             {"$set": {"reactions_enabled": new_state}},
             upsert=True
         )
-        state = "🟢 ACTIVE" if new_state else "🔴 DISABLED"
-        await ctx.reply(embed=discord.Embed(description=f"🟢 Server interactive automated hooks updated: Passive feedback loops are now **{state}**", color=0x2B2D31))
+        state = "🟢 ON" if new_state else "🔴 OFF"
+        await ctx.reply(embed=discord.Embed(description=f"🟢 Auto reactions are now **{state}**", color=0x2B2D31))
 
     @commands.group(invoke_without_command=True)
     @ctx_owner()
@@ -695,33 +695,33 @@ class Admin(commands.Cog):
         gov = await global_status_col.find_one({"type": "owner"})
         docs = await server_status_col.find({}).to_list(50)
 
-        embed = discord.Embed(title="🛡️ Core Identity Activity Metrics Dashboard", color=0x2B2D31)
+        embed = discord.Embed(title="🛡️ Bot Status Dashboard", color=0x2B2D31)
 
         if gov:
             expires = gov.get("expires_at")
-            exp_str = f"<t:{int(expires.timestamp())}:R>" if expires else "`Permanent Absolute Locking`"
+            exp_str = f"<t:{int(expires.timestamp())}:R>" if expires else "`Permanent`"
             embed.add_field(
-                name="👑 Active Master Status Overrides",
-                value=f"✨ **{gov.get('activity','watching').title()}** • `{gov['status']}`\n⏱️ Expiring tracking interval: {exp_str}",
+                name="👑 Master Status Override",
+                value=f"✨ **{gov.get('activity','watching').title()}** • `{gov['status']}`\n⏱️ Expires: {exp_str}",
                 inline=False
             )
         else:
-            embed.add_field(name="👑 Active Master Status Overrides", value="`None` — Dynamic system rotation engine loops processing normally.", inline=False)
+            embed.add_field(name="👑 Master Status Override", value="`None` — Running normal rotation.", inline=False)
 
         if docs:
             lines = [f"• `{d.get('guild_name','?')}` → `{d['status']}`" for d in docs[:10]]
-            embed.add_field(name=f"📊 Managed Server Nodes Custom Feeds ({len(docs)})", value="\n".join(lines), inline=False)
+            embed.add_field(name=f"📊 Custom Server Statuses ({len(docs)})", value="\n".join(lines), inline=False)
         else:
-            embed.add_field(name="📊 Managed Server Nodes Custom Feeds", value="`No active distinct tracks defined`", inline=False)
+            embed.add_field(name="📊 Custom Server Statuses", value="`No custom server statuses set`", inline=False)
 
         embed.add_field(
-            name="⚙️ Operational System Interface Utilities",
+            name="⚙️ Commands",
             value=(
-                "`,botstatus set <activity> <text>` — Establish master permanent activity override\n"
-                "`,botstatus set24h <activity> <text>` — Pin a temporary 24hr state visibility layer\n"
-                "`,botstatus reset` — Terminate administrative layers to restore system defaults\n"
-                "`,botstatus view` — Refresh system visibility matrix overview panels\n"
-                "`,botstatus removeserver <guild_id>` — Clear explicit target node status maps"
+                "`,botstatus set <activity> <text>` — Set permanent status\n"
+                "`,botstatus set24h <activity> <text>` — Set temporary 24-hour status\n"
+                "`,botstatus reset` — Remove override and back to default\n"
+                "`,botstatus view` — Refresh status view\n"
+                "`,botstatus removeserver <guild_id>` — Remove a server status"
             ),
             inline=False
         )
@@ -731,11 +731,11 @@ class Admin(commands.Cog):
     @ctx_owner()
     async def botstatus_set(self, ctx, activity: str = None, *, text: str = None):
         if not activity or not text:
-            return await ctx.reply("❌ Input fields insufficient structural data mapping: `,botstatus set <watching/playing/listening/competing> <text>`")
+            return await ctx.reply("❌ Use: `,botstatus set <watching/playing/listening/competing> <text>`")
         types = {"watching": "watching", "playing": "playing", "listening": "listening", "competing": "competing"}
         atype = types.get(activity.lower())
         if not atype:
-            return await ctx.reply("❌ Activity matching matrix failed parameters verification checkpoints. Select from: watching, playing, listening, competing")
+            return await ctx.reply("❌ Invalid activity type. Choose from: watching, playing, listening, competing")
 
         from utils.db import global_status_col
         await global_status_col.update_one(
@@ -746,8 +746,8 @@ class Admin(commands.Cog):
         await self.bot.change_presence(activity=discord.Activity(type=getattr(discord.ActivityType, atype), name=text))
         
         s_embed = discord.Embed(
-            title="👑 System Override Status Established Successfully",
-            description=f"⚙️ Core presence parameters pinned tracking: **{activity.title()}** `{text}`\n\n🎯 All distributed system nodes visibility frameworks are dynamically superseded by master commands loop parameters.",
+            title="👑 Master Status Set",
+            description=f"⚙️ Status updated to: **{activity.title()}** `{text}`",
             color=0x2B2D31
         )
         await ctx.reply(embed=s_embed)
@@ -756,11 +756,11 @@ class Admin(commands.Cog):
     @ctx_owner()
     async def botstatus_set24h(self, ctx, activity: str = None, *, text: str = None):
         if not activity or not text:
-            return await ctx.reply("❌ Arguments checklist contains zero processing keys: `,botstatus set24h <activity> <text>`")
+            return await ctx.reply("❌ Use: `,botstatus set24h <activity> <text>`")
         types = {"watching": "watching", "playing": "playing", "listening": "listening", "competing": "competing"}
         atype = types.get(activity.lower())
         if not atype:
-            return await ctx.reply("❌ Target validation mapping index mismatch. Use: watching, playing, listening, competing")
+            return await ctx.reply("❌ Invalid activity type. Use: watching, playing, listening, competing")
 
         from utils.db import global_status_col
         expires = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -772,8 +772,8 @@ class Admin(commands.Cog):
         await self.bot.change_presence(activity=discord.Activity(type=getattr(discord.ActivityType, atype), name=text))
         
         s24_embed = discord.Embed(
-            title="⏱️ Temporary System Override Successfully Registered",
-            description=f"⚙️ Target activity metrics locked tracking: **{activity.title()}** `{text}`\n\n⏳ Scheduled removal countdown point matches window: <t:{int(expires.timestamp())}:R>",
+            title="⏱️ Temporary Status Set (24h)",
+            description=f"⚙️ Status set to: **{activity.title()}** `{text}`\n\n⏳ Ends: <t:{int(expires.timestamp())}:R>",
             color=0x2B2D31
         )
         await ctx.reply(embed=s24_embed)
@@ -784,9 +784,9 @@ class Admin(commands.Cog):
         from utils.db import global_status_col
         result = await global_status_col.delete_one({"type": "owner"})
         if result.deleted_count:
-            await ctx.reply(embed=discord.Embed(description="🟢 Master status locks cleanly unlinked from profile. Standard generation streams back up.", color=0x2B2D31))
+            await ctx.reply(embed=discord.Embed(description="🟢 Master status removed. Default status restored.", color=0x2B2D31))
         else:
-            await ctx.reply("❌ Process failed: No master activity override layers are currently tracking.")
+            await ctx.reply("❌ No master status override is currently active.")
 
     @botstatus.command(name="view")
     @ctx_owner()
@@ -797,17 +797,17 @@ class Admin(commands.Cog):
     @ctx_owner()
     async def botstatus_removeserver(self, ctx, guild_id: str = None):
         if not guild_id:
-            return await ctx.reply("❌ Identification target tracking data missing: `,botstatus removeserver <guild_id>`")
+            return await ctx.reply("❌ Use: `,botstatus removeserver <guild_id>`")
         from utils.db import server_status_col
         doc = await server_status_col.find_one({"guild_id": guild_id})
         if not doc:
-            return await ctx.reply(f"❌ Target tracking mappings reveal zero matching assets for guild reference: `{guild_id}`")
+            return await ctx.reply(f"❌ No custom status found for server ID: `{guild_id}`")
         gname = doc.get("guild_name", guild_id)
         status = doc.get("status", "?")
         await server_status_col.delete_one({"guild_id": guild_id})
         
         rem_embed = discord.Embed(
-            description=f"🟢 Data drop processing successfully purged target server customized visibility maps for node **{gname}**:\n`{status}`",
+            description=f"🟢 Removed custom status for **{gname}**:\n`{status}`",
             color=0x2B2D31
         )
         await ctx.reply(embed=rem_embed)
@@ -819,8 +819,8 @@ class Admin(commands.Cog):
         lines = [f"`{i+1}.` **{g.name}** — `{g.member_count}` members *(ID: {g.id})*" for i, g in enumerate(guilds[:20])]
         
         embed = discord.Embed(
-            title=f"🌐 Shared Network Nodes Directory ({len(self.bot.guilds)} Total)",
-            description="\n".join(lines) + (f"\n*...and {len(guilds)-20} additional active target connections.*" if len(guilds) > 20 else ""),
+            title=f"🌐 Server List ({len(self.bot.guilds)} Total)",
+            description="\n".join(lines) + (f"\n*...and {len(guilds)-20} more servers.*" if len(guilds) > 20 else ""),
             color=0x2B2D31
         )
         await ctx.reply(embed=embed)
@@ -829,24 +829,24 @@ class Admin(commands.Cog):
     @ctx_owner()
     async def leaveguild(self, ctx, guild_id: int = None):
         if not guild_id:
-            return await ctx.reply("❌ Node target matrix mapping values absent: `,leaveguild <guild_id>`")
+            return await ctx.reply("❌ Use: `,leaveguild <guild_id>`")
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            return await ctx.reply(f"❌ Pipeline diagnostics fail to interface tracking with node ID: `{guild_id}`")
+            return await ctx.reply(f"❌ Bot is not in a server with ID: `{guild_id}`")
         name = guild.name
         await guild.leave()
-        await ctx.reply(f"🟢 Connections cleanly severed from server target: **{name}**")
+        await ctx.reply(f"🟢 Left server: **{name}**")
 
     @commands.command()
     @ctx_owner()
     async def dm(self, ctx, user: discord.User = None, *, message: str = None):
         if not user or not message:
-            return await ctx.reply("❌ Delivery tracking details incomplete inside argument blocks: `,dm @user <payload>`")
+            return await ctx.reply("❌ Use: `,dm @user <message>`")
         try:
             await user.send(message)
-            await ctx.reply(f"🟢 Direct communication pipeline processed successfully to recipient target: **{user}**")
+            await ctx.reply(f"🟢 Message sent to **{user}**")
         except discord.Forbidden:
-            await ctx.reply(f"❌ Direct messaging structural tracking interface rejected delivery parameters matching user profile: **{user}**")
+            await ctx.reply(f"❌ Cannot send message to **{user}** (DMs closed).")
 
     @commands.command()
     @ctx_owner()
@@ -855,10 +855,10 @@ class Admin(commands.Cog):
             g = discord.Object(id=guild_id)
             self.bot.tree.copy_global_to(guild=g)
             synced = await self.bot.tree.sync(guild=g)
-            await ctx.reply(f"🟢 Isolated development push executed: Synced `{len(synced)}` application modules to network target `{guild_id}`")
+            await ctx.reply(f"🟢 Synced `{len(synced)}` slash commands to server `{guild_id}`")
         else:
             synced = await self.bot.tree.sync()
-            await ctx.reply(f"🌐 Global application tree restructuring event completed: Synced `{len(synced)}` application slash-commands modules.")
+            await ctx.reply(f"🌐 Globally synced `{len(synced)}` slash commands.")
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))

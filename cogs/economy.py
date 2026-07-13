@@ -1,12 +1,3 @@
-"""
-cogs/economy.py — Happy Cash: Global Economy System.
-  - Balance is GLOBAL across all servers
-  - Only bot owner can give/take cash
-  - Users can transfer to each other
-  - Trade system (offer HC, want HC)
-  - Server activity boosts work earnings
-"""
-
 import discord
 from discord.ext import commands
 import asyncio, random
@@ -15,10 +6,10 @@ from datetime import datetime, timezone, timedelta
 from utils.db import db
 from utils.helpers import BOT_OWNER_ID, ctx_owner
 
-# ── Collections ───────────────────────────────────────────────────────────────
-economy_col  = db["economy_global"]  # {user_id, wallet, bank, ...}  ← no guild_id
-trades_col   = db["trades"]          # pending trades
-activity_col = db["server_activity"] # {guild_id, msg_count, window_start}
+economy_col  = db["economy_global"]  
+trades_col   = db["trades"]          
+activity_col = db["server_activity"] 
+inv_col      = db["investments"]
 
 CURRENCY       = "HC"
 CURRENCY_EMOJI = "💰"
@@ -27,12 +18,11 @@ DAILY_MIN      = 150
 DAILY_MAX      = 350
 WORK_BASE_MIN  = 50
 WORK_BASE_MAX  = 150
-WORK_CD        = 3600    # 1h
-DAILY_CD       = 86400   # 24h
+WORK_CD        = 3600    
+DAILY_CD       = 86400   
 
-# Activity thresholds for work boost
-ACTIVITY_BOOST_THRESHOLD = 30   # msgs in last hour for active boost
-ACTIVITY_PENALTY_THRESHOLD = 5  # msgs in last hour = dead server penalty
+ACTIVITY_BOOST_THRESHOLD = 30   
+ACTIVITY_PENALTY_THRESHOLD = 5  
 
 WORK_RESPONSES = [
     "You delivered packages and earned {amount} HC.",
@@ -47,10 +37,12 @@ WORK_RESPONSES = [
     "You helped someone with their resume for {amount} HC.",
 ]
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  DB HELPERS  (global — no guild_id)
-# ══════════════════════════════════════════════════════════════════════════════
+INVESTMENTS = {
+    "safe":     {"name": "Safe Bond",    "emoji": "🏦", "min_r": 0.05, "max_r": 0.12, "risk": 0.03, "loss": 0.05, "hours": 4,  "desc": "5-12% return · 3% loss chance · 4h"},
+    "market":   {"name": "Stock Market", "emoji": "📈", "min_r": 0.10, "max_r": 0.35, "risk": 0.25, "loss": 0.20, "hours": 8,  "desc": "10-35% return · 25% loss chance · 8h"},
+    "crypto":   {"name": "Crypto",       "emoji": "₿",  "min_r": 0.20, "max_r": 0.80, "risk": 0.45, "loss": 0.50, "hours": 12, "desc": "20-80% return · 45% crash chance · 12h"},
+    "business": {"name": "Business",     "emoji": "🏢", "min_r": 0.15, "max_r": 0.50, "risk": 0.30, "loss": 0.30, "hours": 24, "desc": "15-50% return · 30% loss chance · 24h"},
+}
 
 async def get_account(user_id: int) -> dict:
     doc = await economy_col.find_one({"user_id": str(user_id)})
@@ -69,8 +61,7 @@ async def get_account(user_id: int) -> dict:
 async def add_wallet(user_id: int, amount: int):
     await economy_col.update_one(
         {"user_id": str(user_id)},
-        {"$inc": {"wallet": amount,
-                  "total_earned": max(0, amount)}},
+        {"$inc": {"wallet": amount, "total_earned": max(0, amount)}},
         upsert=True
     )
 
@@ -93,18 +84,11 @@ def _fmt_cd(s: int) -> str:
     m, sec = divmod(r, 60)
     return f"{h}h {m}m" if h else (f"{m}m {sec}s" if m else f"{sec}s")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  ACTIVITY TRACKING
-# ══════════════════════════════════════════════════════════════════════════════
-
 async def _track_message(guild_id: int):
-    """Increment hourly message count for a guild."""
     now = datetime.now(timezone.utc)
     doc = await activity_col.find_one({"guild_id": str(guild_id)})
 
     if not doc or (now - doc["window_start"].replace(tzinfo=timezone.utc)).total_seconds() > 3600:
-        # Reset window
         await activity_col.update_one(
             {"guild_id": str(guild_id)},
             {"$set": {"msg_count": 1, "window_start": now}},
@@ -117,7 +101,6 @@ async def _track_message(guild_id: int):
         )
 
 async def _get_activity_multiplier(guild_id: int) -> tuple[float, str]:
-    """Return (multiplier, label) based on server activity in last hour."""
     doc = await activity_col.find_one({"guild_id": str(guild_id)})
     if not doc:
         return 1.0, ""
@@ -139,45 +122,32 @@ async def _get_activity_multiplier(guild_id: int) -> tuple[float, str]:
         return 0.7, f"Server quiet ({count} msgs/hr) — 0.7x earnings"
     return 1.0, f"{count} msgs/hr"
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  COG
-# ══════════════════════════════════════════════════════════════════════════════
-
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ── Track activity ────────────────────────────────────────────────────────
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
         await _track_message(message.guild.id)
 
-    # ── Balance ────────────────────────────────────────────────────────────────
     @commands.command(aliases=["bal", "wallet", "cash"])
     async def balance(self, ctx, member: discord.Member = None):
-        """Check your global balance (same across all servers)."""
         member = member or ctx.author
         acc    = await get_account(member.id)
         total  = acc["wallet"] + acc["bank"]
 
         embed = discord.Embed(color=0xF0C040)
-        embed.set_author(
-            name=f"{member.display_name}'s Balance",
-            icon_url=member.display_avatar.url
-        )
+        embed.set_author(name=f"{member.display_name}'s Balance", icon_url=member.display_avatar.url)
         embed.add_field(name=f"{CURRENCY_EMOJI} Wallet", value=f"**{acc['wallet']:,} HC**", inline=True)
-        embed.add_field(name="🏦 Bank",                  value=f"**{acc['bank']:,} HC**",   inline=True)
-        embed.add_field(name="📊 Net Worth",             value=f"**{total:,} HC**",         inline=True)
+        embed.add_field(name="🏦 Bank", value=f"**{acc['bank']:,} HC**", inline=True)
+        embed.add_field(name="📊 Net Worth", value=f"**{total:,} HC**", inline=True)
         embed.set_footer(text=f"Global balance · All time earned: {acc.get('total_earned',0):,} HC")
         await ctx.reply(embed=embed)
 
-    # ── Daily ──────────────────────────────────────────────────────────────────
     @commands.command()
     async def daily(self, ctx):
-        """Claim your daily reward. Resets every 24 hours."""
         acc = await get_account(ctx.author.id)
         cd  = _cd_left(acc.get("last_daily"), DAILY_CD)
         if cd:
@@ -189,8 +159,7 @@ class Economy(commands.Cog):
         amount = random.randint(DAILY_MIN, DAILY_MAX)
         await economy_col.update_one(
             {"user_id": str(ctx.author.id)},
-            {"$inc": {"wallet": amount, "total_earned": amount},
-             "$set":  {"last_daily": datetime.now(timezone.utc)}},
+            {"$inc": {"wallet": amount, "total_earned": amount}, "$set": {"last_daily": datetime.now(timezone.utc)}},
             upsert=True
         )
         await ctx.reply(embed=discord.Embed(
@@ -199,10 +168,8 @@ class Economy(commands.Cog):
             color=0xF0C040
         ).set_footer(text="Come back tomorrow · Balance is global across all servers"))
 
-    # ── Work ───────────────────────────────────────────────────────────────────
     @commands.command()
     async def work(self, ctx):
-        """Work for HC. Earnings depend on how active this server is."""
         acc = await get_account(ctx.author.id)
         cd  = _cd_left(acc.get("last_work"), WORK_CD)
         if cd:
@@ -218,8 +185,7 @@ class Economy(commands.Cog):
 
         await economy_col.update_one(
             {"user_id": str(ctx.author.id)},
-            {"$inc": {"wallet": amount, "total_earned": amount},
-             "$set":  {"last_work": datetime.now(timezone.utc)}},
+            {"$inc": {"wallet": amount, "total_earned": amount}, "$set": {"last_work": datetime.now(timezone.utc)}},
             upsert=True
         )
         embed = discord.Embed(description=f"{CURRENCY_EMOJI} {story}", color=0x57F287)
@@ -228,10 +194,8 @@ class Economy(commands.Cog):
         embed.set_footer(text=f"Next work in 1h · Wallet: {acc['wallet'] + amount:,} HC")
         await ctx.reply(embed=embed)
 
-    # ── Activity status ────────────────────────────────────────────────────────
     @commands.command(aliases=["activity"])
     async def serverstatus(self, ctx):
-        """Check this server's activity level and work earnings multiplier."""
         mult, label = await _get_activity_multiplier(ctx.guild.id)
         doc  = await activity_col.find_one({"guild_id": str(ctx.guild.id)})
         count = doc.get("msg_count", 0) if doc else 0
@@ -244,9 +208,9 @@ class Economy(commands.Cog):
             color, status = 0xED4245, "Inactive"
 
         embed = discord.Embed(title=f"Server Activity — {ctx.guild.name}", color=color)
-        embed.add_field(name="Status",          value=status,           inline=True)
-        embed.add_field(name="Messages (1h)",   value=f"{count}",       inline=True)
-        embed.add_field(name="Work Multiplier", value=f"**{mult}x**",   inline=True)
+        embed.add_field(name="Status", value=status, inline=True)
+        embed.add_field(name="Messages (1h)", value=f"{count}", inline=True)
+        embed.add_field(name="Work Multiplier", value=f"**{mult}x**", inline=True)
         embed.add_field(
             name="How it works",
             value=(
@@ -261,10 +225,8 @@ class Economy(commands.Cog):
         embed.set_footer(text="Keep the server active to boost everyone's earnings!")
         await ctx.reply(embed=embed)
 
-    # ── Deposit / Withdraw ────────────────────────────────────────────────────
     @commands.command(aliases=["dep"])
     async def deposit(self, ctx, amount: str = None):
-        """Deposit cash into your bank."""
         if not amount:
             return await ctx.reply("Usage: `,deposit <amount>` or `,deposit all`")
         acc = await get_account(ctx.author.id)
@@ -284,7 +246,6 @@ class Economy(commands.Cog):
 
     @commands.command(aliases=["with"])
     async def withdraw(self, ctx, amount: str = None):
-        """Withdraw cash from your bank."""
         if not amount:
             return await ctx.reply("Usage: `,withdraw <amount>` or `,withdraw all`")
         acc = await get_account(ctx.author.id)
@@ -302,10 +263,8 @@ class Economy(commands.Cog):
             color=0x57F287
         ).set_footer(text=f"Wallet: {acc['wallet']+amt:,} HC · Bank: {acc['bank']-amt:,} HC"))
 
-    # ── Transfer ───────────────────────────────────────────────────────────────
     @commands.command(aliases=["pay", "give", "send"])
     async def transfer(self, ctx, member: discord.Member = None, amount: str = None):
-        """Send HC to another user (works globally)."""
         if not member or not amount:
             return await ctx.reply("Usage: `,transfer @user <amount>`")
         if member.id == ctx.author.id:
@@ -333,10 +292,8 @@ class Economy(commands.Cog):
         embed.set_footer(text="Global transfer — works across all servers")
         await ctx.reply(embed=embed)
 
-    # ── TRADE SYSTEM ───────────────────────────────────────────────────────────
     @commands.group(invoke_without_command=True)
     async def trade(self, ctx):
-        """Trade HC with another user. Sub-commands: offer, accept, decline, cancel, list"""
         embed = discord.Embed(title="Trade System", color=0xF0C040)
         embed.add_field(
             name="How to Trade",
@@ -354,12 +311,7 @@ class Economy(commands.Cog):
         await ctx.reply(embed=embed)
 
     @trade.command(name="offer")
-    async def trade_offer(self, ctx, member: discord.Member = None,
-                          offer_hc: int = None, want_hc: int = None):
-        """
-        Send a trade offer.
-        ,trade offer @user <you offer HC> <you want HC>
-        """
+    async def trade_offer(self, ctx, member: discord.Member = None, offer_hc: int = None, want_hc: int = None):
         if not member or offer_hc is None or want_hc is None:
             return await ctx.reply("Usage: `,trade offer @user <offer> <want>`\nExample: `,trade offer @Rohan 500 300`")
         if member.id == ctx.author.id:
@@ -373,7 +325,6 @@ class Economy(commands.Cog):
         if offer_hc > acc["wallet"]:
             return await ctx.reply(f"Not enough in wallet. You have **{acc['wallet']:,} HC**.")
 
-        # Lock the offered HC immediately
         await add_wallet(ctx.author.id, -offer_hc)
 
         trade_id = f"{ctx.author.id}{member.id}{int(datetime.now(timezone.utc).timestamp())}"[-8:]
@@ -401,7 +352,6 @@ class Economy(commands.Cog):
         embed.set_footer(text=f"{member.display_name}: use ,trade accept {trade_id} or ,trade decline {trade_id}")
         await ctx.reply(embed=embed)
 
-        # Notify the recipient
         try:
             notify = discord.Embed(
                 description=(
@@ -419,7 +369,6 @@ class Economy(commands.Cog):
 
     @trade.command(name="accept")
     async def trade_accept(self, ctx, trade_id: str = None):
-        """Accept a trade offer sent to you."""
         if not trade_id:
             return await ctx.reply("Usage: `,trade accept <trade_id>`")
 
@@ -431,19 +380,13 @@ class Economy(commands.Cog):
 
         acc = await get_account(ctx.author.id)
         if doc["want_hc"] > acc["wallet"]:
-            return await ctx.reply(
-                f"Not enough HC. This trade requires **{doc['want_hc']:,} HC** from your wallet."
-            )
+            return await ctx.reply(f"Not enough HC. This trade requires **{doc['want_hc']:,} HC** from your wallet.")
 
-        # Execute trade
-        await add_wallet(ctx.author.id, -doc["want_hc"])     # recipient pays
-        await add_wallet(int(doc["from_id"]), doc["want_hc"]) # sender receives
-        await add_wallet(ctx.author.id, doc["offer_hc"])      # recipient receives locked HC
+        await add_wallet(ctx.author.id, -doc["want_hc"])     
+        await add_wallet(int(doc["from_id"]), doc["want_hc"]) 
+        await add_wallet(ctx.author.id, doc["offer_hc"])      
 
-        await trades_col.update_one(
-            {"trade_id": trade_id},
-            {"$set": {"status": "completed"}}
-        )
+        await trades_col.update_one({"trade_id": trade_id}, {"$set": {"status": "completed"}})
 
         sender = ctx.guild.get_member(int(doc["from_id"]))
         embed  = discord.Embed(
@@ -459,7 +402,6 @@ class Economy(commands.Cog):
 
     @trade.command(name="decline")
     async def trade_decline(self, ctx, trade_id: str = None):
-        """Decline a trade offer."""
         if not trade_id:
             return await ctx.reply("Usage: `,trade decline <trade_id>`")
 
@@ -469,7 +411,6 @@ class Economy(commands.Cog):
         if str(ctx.author.id) != doc["to_id"]:
             return await ctx.reply("This trade was not sent to you.")
 
-        # Refund the sender
         await add_wallet(int(doc["from_id"]), doc["offer_hc"])
         await trades_col.update_one({"trade_id": trade_id}, {"$set": {"status": "declined"}})
 
@@ -480,7 +421,6 @@ class Economy(commands.Cog):
 
     @trade.command(name="cancel")
     async def trade_cancel(self, ctx, trade_id: str = None):
-        """Cancel your own pending trade offer."""
         if not trade_id:
             return await ctx.reply("Usage: `,trade cancel <trade_id>`")
 
@@ -500,7 +440,6 @@ class Economy(commands.Cog):
 
     @trade.command(name="list")
     async def trade_list(self, ctx):
-        """View your pending trades (sent and received)."""
         uid    = str(ctx.author.id)
         cursor = trades_col.find({"status": "pending", "$or": [{"from_id": uid}, {"to_id": uid}]})
         docs   = await cursor.to_list(20)
@@ -523,10 +462,8 @@ class Economy(commands.Cog):
         embed.set_footer(text=",trade accept/decline/cancel <id>")
         await ctx.reply(embed=embed)
 
-    # ── GAMBLING ───────────────────────────────────────────────────────────────
     @commands.command(name="coinflip", aliases=["cf", "bet"])
     async def coinflip(self, ctx, amount: str = None, choice: str = None):
-        """Gamble with a coinflip. ,cf <amount> [heads/tails]"""
         if not amount:
             return await ctx.reply("Usage: `,cf <amount> [heads/tails]`")
 
@@ -567,7 +504,6 @@ class Economy(commands.Cog):
 
     @commands.command(aliases=["slot"])
     async def slots(self, ctx, amount: str = None):
-        """Spin the slot machine. Match 3 for jackpot!"""
         if not amount:
             return await ctx.reply("Usage: `,slots <amount>`")
 
@@ -600,7 +536,6 @@ class Economy(commands.Cog):
 
     @commands.command()
     async def rob(self, ctx, member: discord.Member = None):
-        """Try to rob someone's wallet. 45% success rate."""
         if not member or member.id == ctx.author.id or member.bot:
             return await ctx.reply("Mention a valid member to rob.")
 
@@ -631,10 +566,8 @@ class Economy(commands.Cog):
             )
         await ctx.reply(embed=embed)
 
-    # ── Leaderboard ────────────────────────────────────────────────────────────
     @commands.command(aliases=["rich", "top"])
     async def richlist(self, ctx):
-        """Top 10 richest Happy Cash holders globally."""
         cursor = economy_col.find().sort("wallet", -1).limit(10)
         docs   = await cursor.to_list(10)
 
@@ -653,19 +586,13 @@ class Economy(commands.Cog):
             pos   = medals[i-1] if i <= 3 else f"`{i}.`"
             lines.append(f"{pos} **{name}** — {total:,} HC")
 
-        embed = discord.Embed(
-            title="Global Rich List",
-            description="\n".join(lines),
-            color=0xF0C040
-        )
+        embed = discord.Embed(title="Global Rich List", description="\n".join(lines), color=0xF0C040)
         embed.set_footer(text="Global leaderboard · Wallet + Bank")
         await ctx.reply(embed=embed)
 
-    # ── Owner only: give/take/reset ────────────────────────────────────────────
     @commands.command()
     @ctx_owner()
     async def givecash(self, ctx, member: discord.Member = None, amount: int = None):
-        """Give HC to a user — Bot Owner only."""
         if not member or not amount:
             return await ctx.reply("Usage: `,givecash @user <amount>`")
         await add_wallet(member.id, amount)
@@ -677,7 +604,6 @@ class Economy(commands.Cog):
     @commands.command()
     @ctx_owner()
     async def takecash(self, ctx, member: discord.Member = None, amount: int = None):
-        """Remove HC from a user — Bot Owner only."""
         if not member or not amount:
             return await ctx.reply("Usage: `,takecash @user <amount>`")
         await add_wallet(member.id, -amount)
@@ -689,7 +615,6 @@ class Economy(commands.Cog):
     @commands.command()
     @ctx_owner()
     async def resetcash(self, ctx, member: discord.Member = None):
-        """Reset a user's balance — Bot Owner only."""
         if not member:
             return await ctx.reply("Usage: `,resetcash @user`")
         await economy_col.update_one(
@@ -699,31 +624,11 @@ class Economy(commands.Cog):
         )
         await ctx.reply(f"Balance reset for **{member.display_name}**.")
 
-
-async def setup(bot):
-    await bot.add_cog(Economy(bot))
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  INVEST SYSTEM
-    # ══════════════════════════════════════════════════════════════════════════
-
-    INVESTMENTS = {
-        "safe":     {"name": "Safe Bond",    "emoji": "🏦", "min_r": 0.05, "max_r": 0.12, "risk": 0.03, "loss": 0.05, "hours": 4,  "desc": "5-12% return · 3% loss chance · 4h"},
-        "market":   {"name": "Stock Market", "emoji": "📈", "min_r": 0.10, "max_r": 0.35, "risk": 0.25, "loss": 0.20, "hours": 8,  "desc": "10-35% return · 25% loss chance · 8h"},
-        "crypto":   {"name": "Crypto",       "emoji": "₿",  "min_r": 0.20, "max_r": 0.80, "risk": 0.45, "loss": 0.50, "hours": 12, "desc": "20-80% return · 45% crash chance · 12h"},
-        "business": {"name": "Business",     "emoji": "🏢", "min_r": 0.15, "max_r": 0.50, "risk": 0.30, "loss": 0.30, "hours": 24, "desc": "15-50% return · 30% loss chance · 24h"},
-    }
-
     @commands.group(invoke_without_command=True)
     async def invest(self, ctx):
-        """Invest your HC and earn returns over time."""
         embed = discord.Embed(title="Investment Options", color=0xF0C040)
-        for key, inv in self.INVESTMENTS.items():
-            embed.add_field(
-                name=f"{inv['emoji']} {inv['name']}",
-                value=f"{inv['desc']}\n`,invest in {key} <amount>`",
-                inline=True
-            )
+        for key, inv in INVESTMENTS.items():
+            embed.add_field(name=f"{inv['emoji']} {inv['name']}", value=f"{inv['desc']}\n`,invest in {key} <amount>`", inline=True)
         embed.add_field(
             name="Commands",
             value=(
@@ -739,8 +644,7 @@ async def setup(bot):
 
     @invest.command(name="in")
     async def invest_in(self, ctx, inv_type: str = None, amount: str = None):
-        """Start an investment. ,invest in <safe/market/crypto/business> <amount>"""
-        if not inv_type or inv_type.lower() not in self.INVESTMENTS:
+        if not inv_type or inv_type.lower() not in INVESTMENTS:
             return await ctx.reply("Types: `safe` `market` `crypto` `business`\nUsage: `,invest in <type> <amount>`")
         if not amount:
             return await ctx.reply("Specify an amount. Example: `,invest in market 1000`")
@@ -754,7 +658,6 @@ async def setup(bot):
         if amt > acc["wallet"]:
             return await ctx.reply(f"Not enough. Wallet: **{acc['wallet']:,} HC**.")
 
-        inv_col  = db["investments"]
         existing = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
         if existing:
             mat = existing["maturity"]
@@ -762,7 +665,7 @@ async def setup(bot):
                 mat = mat.replace(tzinfo=timezone.utc)
             left = int((mat - datetime.now(timezone.utc)).total_seconds())
             if left > 0:
-                inv_info = self.INVESTMENTS.get(existing["type"], {})
+                inv_info = INVESTMENTS.get(existing["type"], {})
                 return await ctx.reply(embed=discord.Embed(
                     description=(
                         f"Already investing in **{inv_info.get('name', existing['type'])}** ({existing['amount']:,} HC).\n"
@@ -772,7 +675,7 @@ async def setup(bot):
                     color=0xFEE75C
                 ))
 
-        inv      = self.INVESTMENTS[inv_type.lower()]
+        inv      = INVESTMENTS[inv_type.lower()]
         maturity = datetime.now(timezone.utc) + timedelta(hours=inv["hours"])
         await add_wallet(ctx.author.id, -amt)
         await inv_col.update_one(
@@ -801,9 +704,7 @@ async def setup(bot):
 
     @invest.command(name="check")
     async def invest_check(self, ctx):
-        """Check your current investment."""
-        inv_col = db["investments"]
-        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        doc = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
         if not doc:
             return await ctx.reply("No active investment. Use `,invest` to see options.")
 
@@ -813,24 +714,21 @@ async def setup(bot):
         left = int((mat - datetime.now(timezone.utc)).total_seconds())
 
         if left <= 0:
-            await ctx.reply("Your investment has matured! Use `,invest collect` to claim it.")
-            return
+            return await ctx.reply("Your investment has matured! Use `,invest collect` to claim it.")
 
-        inv     = self.INVESTMENTS.get(doc["type"], {})
+        inv     = INVESTMENTS.get(doc["type"], {})
         min_ret = int(doc["amount"] * inv.get("min_r", 0))
         max_ret = int(doc["amount"] * inv.get("max_r", 0))
         embed   = discord.Embed(title=f"{inv.get('emoji','')} {inv.get('name','Investment')}", color=0xF0C040)
-        embed.add_field(name="Invested",        value=f"{doc['amount']:,} HC",             inline=True)
-        embed.add_field(name="Expected Return", value=f"+{min_ret:,} to +{max_ret:,} HC",  inline=True)
-        embed.add_field(name="Matures",         value=f"<t:{int(mat.timestamp())}:R>",     inline=True)
+        embed.add_field(name="Invested", value=f"{doc['amount']:,} HC", inline=True)
+        embed.add_field(name="Expected Return", value=f"+{min_ret:,} to +{max_ret:,} HC", inline=True)
+        embed.add_field(name="Matures", value=f"<t:{int(mat.timestamp())}:R>", inline=True)
         embed.set_footer(text=",invest collect when mature · ,invest withdraw to exit early (10% penalty)")
         await ctx.reply(embed=embed)
 
     @invest.command(name="collect")
     async def invest_collect(self, ctx):
-        """Collect your matured investment."""
-        inv_col = db["investments"]
-        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        doc = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
         if not doc:
             return await ctx.reply("No active investment to collect.")
 
@@ -845,11 +743,10 @@ async def setup(bot):
                 color=0xED4245
             ))
 
-        inv    = self.INVESTMENTS.get(doc["type"], {})
+        inv    = INVESTMENTS.get(doc["type"], {})
         amount = doc["amount"]
 
         if random.random() < inv.get("risk", 0):
-            # Loss
             loss_pct = inv.get("loss", 0.2)
             loss_amt = int(amount * loss_pct)
             payout   = amount - loss_amt
@@ -861,7 +758,6 @@ async def setup(bot):
                 color=0xED4245
             )
         else:
-            # Profit
             ret_pct = random.uniform(inv.get("min_r", 0.05), inv.get("max_r", 0.12))
             profit  = int(amount * ret_pct)
             payout  = amount + profit
@@ -877,9 +773,7 @@ async def setup(bot):
 
     @invest.command(name="withdraw")
     async def invest_withdraw(self, ctx):
-        """Exit your investment early. 10% penalty applies."""
-        inv_col = db["investments"]
-        doc     = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
+        doc = await inv_col.find_one({"user_id": str(ctx.author.id), "status": "active"})
         if not doc:
             return await ctx.reply("No active investment.")
 
@@ -892,7 +786,6 @@ async def setup(bot):
             description=f"Penalty (10%): **-{penalty:,} HC**\nReturned to wallet: **{payout:,} HC**",
             color=0xFEE75C
         ))
-
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))

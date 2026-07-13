@@ -52,6 +52,7 @@ COGS = [
     "cogs.extraperm",
     "cogs.aliases",
     "cogs.antinuke",
+    "cogs.emotes",
 
 ]
 

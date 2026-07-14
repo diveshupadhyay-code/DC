@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from flask import Flask
+from flask import Flask, render_template, redirect
 from threading import Thread
 import os, asyncio
 from dotenv import load_dotenv
@@ -12,7 +12,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Happy is Online!"
+    return render_template('happy_bot_dashboard.html')
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))

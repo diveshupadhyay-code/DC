@@ -1,0 +1,738 @@
+<h2 class="sr-only">Happy Bot — Dashboard and Documentation</h2>
+<style>
+:root {
+  --primary: #5865F2;
+  --primary-hover: #4752C4;
+  --bg-main: #0F172A;
+  --bg-card: #1E293B;
+  --bg-nav: #1E293B;
+  --text-main: #F1F5F9;
+  --text-muted: #94A3B8;
+  --border: #334155;
+  --radius: 12px;
+  --radius-sm: 8px;
+  
+  --badge-prem: #FEF08A;
+  --text-prem: #854D0E;
+  --badge-mod: #BFDBFE;
+  --text-mod: #1E40AF;
+  --badge-admin: #FCA5A5;
+  --text-admin: #991B1B;
+  --badge-owner: #E2E8F0;
+  --text-owner: #334155;
+  --badge-all: #BBF7D0;
+  --text-all: #166534;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg-main);
+  color: var(--text-main);
+  padding: 1.5rem;
+  line-height: 1.5;
+}
+
+.nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav button {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-nav);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.nav button:hover {
+  color: var(--text-main);
+  border-color: var(--primary);
+  background: rgba(88, 101, 242, 0.1);
+}
+
+.nav button.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.2);
+}
+
+.page {
+  display: none;
+  padding: 1.5rem 0;
+  animation: fadeIn 0.3s ease;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card .label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-card .value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin: 2rem 0 1rem;
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.cmd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  text-align: left;
+}
+
+.cmd-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cmd-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
+  vertical-align: middle;
+}
+
+.cmd-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cmd-table td:first-child {
+  font-family: monospace;
+  font-size: 13px;
+  color: #38BDF8;
+  font-weight: 600;
+}
+
+.cmd-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-prem { background: var(--badge-prem); color: var(--text-prem); }
+.badge-mod { background: var(--badge-mod); color: var(--text-mod); }
+.badge-admin { background: var(--badge-admin); color: var(--text-admin); }
+.badge-owner { background: var(--badge-owner); color: var(--text-owner); }
+.badge-all { background: var(--badge-all); color: var(--text-all); }
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: var(--bg-card);
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-row label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.filter-row select {
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-main);
+  color: var(--text-main);
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-row select:focus {
+  border-color: var(--primary);
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.checkbox-group input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.file-tree {
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 2.2;
+  color: var(--text-main);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.file-tree .dir {
+  color: #38BDF8;
+  font-weight: 600;
+}
+
+.file-tree .desc {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-left: 12px;
+}
+
+.step {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 1.5rem;
+  align-items: flex-start;
+  background: var(--bg-card);
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.step-body {
+  flex: 1;
+}
+
+.step-body strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-main);
+}
+
+.step-body p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+code {
+  font-family: monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #F43F5E;
+}
+
+.env-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.env-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+@media(min-width: 600px) {
+  .env-row {
+    grid-template-columns: 1fr 2fr;
+    gap: 16px;
+  }
+}
+
+.env-row:last-child {
+  border-bottom: none;
+}
+
+.env-key {
+  font-family: monospace;
+  font-size: 13px;
+  color: #38BDF8;
+  font-weight: 600;
+}
+
+.env-val {
+  color: var(--text-muted);
+}
+</style>
+
+<div class="nav">
+  <button class="active" onclick="show('overview',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> Overview</button>
+  <button onclick="show('commands',this)"><i class="ti ti-terminal" aria-hidden="true"></i> Commands</button>
+  <button onclick="show('structure',this)"><i class="ti ti-folder" aria-hidden="true"></i> File structure</button>
+  <button onclick="show('setup',this)"><i class="ti ti-settings" aria-hidden="true"></i> Setup guide</button>
+  <button onclick="show('premium',this)"><i class="ti ti-star" aria-hidden="true"></i> Premium</button>
+  <button onclick="show('cogs',this)"><i class="ti ti-puzzle" aria-hidden="true"></i> Cog guide</button>
+</div>
+
+<div id="overview" class="page active">
+  <div class="grid3">
+    <div class="stat-card"><div class="label">Total cogs</div><div class="value">13</div></div>
+    <div class="stat-card"><div class="label">Prefix commands</div><div class="value">80+</div></div>
+    <div class="stat-card"><div class="label">Slash commands</div><div class="value">18</div></div>
+    <div class="stat-card"><div class="label">DB collections</div><div class="value">20</div></div>
+    <div class="stat-card"><div class="label">Premium features</div><div class="value">8</div></div>
+    <div class="stat-card"><div class="label">Default prefix</div><div class="value">,</div></div>
+  </div>
+
+  <div class="section-title">Cog modules</div>
+  <div class="grid2">
+    <div class="card"><h3><i class="ti ti-bolt" aria-hidden="true"></i> core.py</h3><p>on_ready, rotating status, global on_message dispatcher. Handles AFK, sticky, XP, welcome/bye events, message logs.</p></div>
+    <div class="card"><h3><i class="ti ti-shield" aria-hidden="true"></i> moderation.py</h3><p>Kick, ban, mute, warn, softban, lock/unlock, purge, massrole, jail, setupmute. All mod commands with hierarchy checks.</p></div>
+    <div class="card"><h3><i class="ti ti-confetti" aria-hidden="true"></i> fun.py</h3><p>Ship, hot, 8ball, coinflip, dice, would-you-rather, roast, praise. 11 roleplay actions with varied response pools.</p></div>
+    <div class="card"><h3><i class="ti ti-tool" aria-hidden="true"></i> utility.py</h3><p>Userinfo, avatar, serverinfo, ping, translate, urban, profile, birthday, level, leaderboard, embed builder, mimic, echo.</p></div>
+    <div class="card"><h3><i class="ti ti-brain" aria-hidden="true"></i> ai_chat.py</h3><p>Groq LLaMA AI chat (Premium only). Session tracking, context memory, typing simulation. Blocks @everyone/@here.</p></div>
+    <div class="card"><h3><i class="ti ti-award" aria-hidden="true"></i> roles.py</h3><p>Reaction roles, button roles (Premium), booster reward roles. Persistent across bot restarts.</p></div>
+    <div class="card"><h3><i class="ti ti-door-enter" aria-hidden="true"></i> welcome.py</h3><p>Welcome/bye messages (opt-in), logging config, automod anti-invite, live counters (members/bots/channels).</p></div>
+    <div class="card"><h3><i class="ti ti-ticket" aria-hidden="true"></i> tickets.py</h3><p>Multi-purpose ticket system. Types: Help, Report, Staff, Event. Persistent buttons. Staff role access.</p></div>
+    <div class="card"><h3><i class="ti ti-trending-up" aria-hidden="true"></i> leveling.py</h3><p>XP per message, level-up notifications, leaderboard, setlevel, resetxp admin commands.</p></div>
+    <div class="card"><h3><i class="ti ti-crown" aria-hidden="true"></i> premium.py</h3><p>Premium management, global call, VoiceMaster temp VCs, bump reminder, custom status, quicksetup wizard.</p></div>
+    <div class="card"><h3><i class="ti ti-settings" aria-hidden="true"></i> admin.py</h3><p>Settings dashboard, prefix management, announce, giveaway, premiumrole, maintenance/aimode toggles.</p></div>
+    <div class="card"><h3><i class="ti ti-help" aria-hidden="true"></i> help.py</h3><p>Permission-aware help — shows only commands the user can use. Category filtering: fun, mod, admin, premium, etc.</p></div>
+  </div>
+</div>
+
+<div id="commands" class="page">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label for="perm-filter">Permission:</label>
+      <select id="perm-filter" onchange="filterCmds()">
+        <option value="all">All</option>
+        <option value="everyone">Everyone</option>
+        <option value="mod">Moderator</option>
+        <option value="admin">Admin</option>
+        <option value="owner">Owner only</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="cat-filter">Category:</label>
+      <select id="cat-filter" onchange="filterCmds()">
+        <option value="all">All categories</option>
+        <option value="fun">Fun</option>
+        <option value="utility">Utility</option>
+        <option value="mod">Moderation</option>
+        <option value="roles">Roles</option>
+        <option value="tickets">Tickets</option>
+        <option value="profile">Profile</option>
+        <option value="levels">Levels</option>
+        <option value="admin">Admin</option>
+        <option value="premium">Premium</option>
+      </select>
+    </div>
+    <label class="checkbox-group">
+      <input type="checkbox" id="prem-only" onchange="filterCmds()"> Premium only
+    </label>
+  </div>
+  <div class="table-container">
+    <table class="cmd-table" id="cmd-table">
+      <thead><tr><th>Command</th><th>Description</th><th>Permission</th><th>Category</th></tr></thead>
+      <tbody id="cmd-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="structure" class="page">
+  <div class="section-title">Project layout</div>
+  <div class="card" style="margin-bottom:1.5rem; overflow-x: auto;">
+    <div class="file-tree">
+<span class="dir">happybot/</span>
+  ├── <span class="dir">cogs/</span><span class="desc">— one file per feature area</span>
+  │   ├── core.py<span class="desc"> — startup, on_message, events</span>
+  │   ├── moderation.py<span class="desc"> — kick, ban, lock, purge, jail</span>
+  │   ├── fun.py<span class="desc"> — ship, roleplay, 8ball, dice</span>
+  │   ├── utility.py<span class="desc"> — userinfo, translate, profile</span>
+  │   ├── ai_chat.py<span class="desc"> — Groq AI chat (premium)</span>
+  │   ├── roles.py<span class="desc"> — reaction/button/booster roles</span>
+  │   ├── welcome.py<span class="desc"> — welcome, bye, logs, automod</span>
+  │   ├── tickets.py<span class="desc"> — ticket system</span>
+  │   ├── leveling.py<span class="desc"> — XP, levels, leaderboard</span>
+  │   ├── premium.py<span class="desc"> — call, VoiceMaster, bump</span>
+  │   ├── admin.py<span class="desc"> — settings, prefix, announce</span>
+  │   └── help.py<span class="desc"> — permission-aware help</span>
+  ├── <span class="dir">utils/</span><span class="desc">— shared helpers</span>
+  │   ├── db.py<span class="desc"> — all MongoDB collections</span>
+  │   └── helpers.py<span class="desc"> — prefix, checks, log_event</span>
+  ├── main.py<span class="desc"> — entry point, cog loader, Flask</span>
+  ├── requirements.txt
+  └── .env.example</div>
+  </div>
+
+  <div class="section-title">MongoDB collections (20 total)</div>
+  <div class="grid2">
+    <div class="card"><h3>Core</h3><p><code>server_settings</code> prefix, channels, flags<br><code>premium</code> server/user premium entries<br><code>personal_prefix</code> per-user prefix</p></div>
+    <div class="card"><h3>Moderation</h3><p><code>warnings</code> warn counts<br><code>jail</code> saved roles for unjail<br><code>disabled_commands</code> per-server toggles</p></div>
+    <div class="card"><h3>Content</h3><p><code>sticky_messages</code> channel stickies<br><code>afk_users</code> AFK status + time<br><code>embed_drafts</code> in-progress embeds</p></div>
+    <div class="card"><h3>Roles</h3><p><code>reaction_roles</code> emoji→role maps<br><code>button_roles</code> button panel data<br><code>booster_roles</code> boost reward role</p></div>
+    <div class="card"><h3>Engagement</h3><p><code>levels</code> XP + level per user/guild<br><code>birthdays</code> day/month per user<br><code>user_profiles</code> bio + location</p></div>
+    <div class="card"><h3>Server features</h3><p><code>tickets</code> active + config<br><code>logging_config</code> log channel<br><code>bump_reminder</code> DISBOARD config<br><code>voicemaster</code> temp VC state<br><code>server_status</code> custom bot status<br><code>counters</code> live VC counters</p></div>
+  </div>
+</div>
+
+<div id="setup" class="page">
+  <div class="section-title">Initial setup</div>
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Clone and install</strong><p>Upload files to your server or Render. Run <code>pip install -r requirements.txt</code></p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Set environment variables</strong><p>Copy <code>.env.example</code> → <code>.env</code>. Fill in the three required keys below.</p></div></div>
+
+  <div class="env-container">
+    <div class="env-row"><span class="env-key">DISCORD_TOKEN</span><span class="env-val">Your bot token from Discord Developer Portal</span></div>
+    <div class="env-row"><span class="env-key">GROQ_API_KEY</span><span class="env-val">Free API key from console.groq.com</span></div>
+    <div class="env-row"><span class="env-key">MONGO_URL</span><span class="env-val">MongoDB Atlas connection string (free 500 MB tier)</span></div>
+    <div class="env-row"><span class="env-key">PORT</span><span class="env-val">10000 (default, Render uses this for keep-alive)</span></div>
+  </div>
+
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Render config</strong><p>Build command: <code>pip install -r requirements.txt</code><br>Start command: <code>python main.py</code></p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Set your owner ID</strong><p>Open <code>utils/helpers.py</code> and update <code>BOT_OWNER_ID = 876629015144828939</code> to your Discord user ID.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>First-run server setup</strong><p>Run <code>,quicksetup</code> in your server. Then: <code>,welcome set #channel</code> → <code>,welcome enable</code> → <code>,logs set #mod-logs</code> → <code>,ticket setup</code></p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><strong>Activate premium</strong><p>As the owner: <code>,premium add server YOUR_SERVER_ID</code> to enable AI chat and all premium features for a server.</p></div></div>
+</div>
+
+<div id="premium" class="page">
+  <div class="section-title">What's premium</div>
+  <div class="grid2">
+    <div class="card"><h3><i class="ti ti-brain" aria-hidden="true"></i> AI chat</h3><p>@mention Happy or reply. Powered by LLaMA 3.3 via Groq. Per-user conversation memory. Hinglish responses. Blocks @everyone/@here.</p></div>
+    <div class="card"><h3><i class="ti ti-phone" aria-hidden="true"></i> Global call</h3><p>Connect two servers' channels together in real-time. Messages relay across servers. Use <code>,call</code> to queue, <code>,hangup</code> to end.</p></div>
+    <div class="card"><h3><i class="ti ti-microphone" aria-hidden="true"></i> VoiceMaster</h3><p>Members join a trigger VC → private VC auto-created. Deleted when empty. Setup: <code>,vcsetup</code>.</p></div>
+    <div class="card"><h3><i class="ti ti-mouse" aria-hidden="true"></i> Button roles</h3><p>Interactive role buttons. Click to toggle a role. Persistent across restarts. Setup: <code>,buttonrole @role Label | @role2 Label</code>.</p></div>
+    <div class="card"><h3><i class="ti ti-bell" aria-hidden="true"></i> Bump reminder</h3><p>Auto-reminds 2h after every DISBOARD bump. Setup: <code>,bumpreminder on</code> in the reminder channel.</p></div>
+    <div class="card"><h3><i class="ti ti-activity" aria-hidden="true"></i> Custom status</h3><p>Add your server's text to the bot's rotating status pool. Setup: <code>,setstatus Your text here</code>.</p></div>
+    <div class="card"><h3><i class="ti ti-keyboard" aria-hidden="true"></i> Personal prefix</h3><p>Works across ALL servers with Happy. Setup: <code>,prefix self !</code>. Remove: <code>,prefix selfremove</code>.</p></div>
+    <div class="card"><h3><i class="ti ti-user-check" aria-hidden="true"></i> Who gets premium</h3><p>Activated per-server or per-user by the bot owner. <code>,premium add server ID</code> or <code>,premium add user ID</code>.</p></div>
+  </div>
+
+  <div class="section-title">Owner commands</div>
+  <div class="table-container">
+    <table class="cmd-table">
+      <thead><tr><th>Command</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>,premium add server &lt;id&gt;</td><td>Activate premium for an entire server</td></tr>
+        <tr><td>,premium add user &lt;id&gt;</td><td>Activate premium for a specific user</td></tr>
+        <tr><td>,premium remove server/user &lt;id&gt;</td><td>Remove premium access</td></tr>
+        <tr><td>,premium list</td><td>List all active premium entries</td></tr>
+        <tr><td>,aimode on/off</td><td>Toggle AI chat globally across all servers</td></tr>
+        <tr><td>,maintenance on/off</td><td>Block all AI responses while you work on the bot</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="cogs" class="page">
+  <div class="section-title">How to add a new cog</div>
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Create the file</strong><p>Add <code>cogs/mycog.py</code>. Use the template below as a starting point.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Register in main.py</strong><p>Add <code>"cogs.mycog"</code> to the <code>COGS</code> list in <code>main.py</code>. The loader handles the rest.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Restart or hot-reload</strong><p>Redeploy on Render, or run <code>,reload mycog</code> if you add a reload command to the owner cog.</p></div></div>
+
+  <div class="section-title">Cog template</div>
+  <div class="card" style="overflow-x: auto;">
+    <div class="file-tree" style="font-size:13px;line-height:1.8">
+"""cogs/mycog.py — Short description."""
+import discord
+from discord.ext import commands
+from utils.helpers import ctx_mod, ctx_admin, ctx_owner
+from utils.db import some_col
+
+class MyCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    @ctx_mod() 
+    async def mycommand(self, ctx):
+        """Help text shown in ,help."""
+        await ctx.reply("Hello!")
+
+async def setup(bot):
+    await bot.add_cog(MyCog(bot))</div>
+  </div>
+
+  <div class="section-title">Permission decorators (utils/helpers.py)</div>
+  <div class="table-container">
+    <table class="cmd-table">
+      <thead><tr><th>Decorator</th><th>Who can use it</th><th>Usage</th></tr></thead>
+      <tbody>
+        <tr><td>@ctx_owner()</td><td>Bot owner ID only</td><td>Owner-only commands</td></tr>
+        <tr><td>@ctx_admin()</td><td>Owner + server admins</td><td>Server config commands</td></tr>
+        <tr><td>@ctx_mod()</td><td>Owner + admins + mods</td><td>Moderation commands</td></tr>
+        <tr><td>@ctx_premium()</td><td>Owner + premium user/server</td><td>Premium features</td></tr>
+        <tr><td>@is_owner()</td><td>Owner only (slash)</td><td>Slash owner commands</td></tr>
+        <tr><td>@is_admin_or_owner()</td><td>Owner + admins (slash)</td><td>Slash admin commands</td></tr>
+        <tr><td>@is_mod_or_owner()</td><td>Owner + mods (slash)</td><td>Slash mod commands</td></tr>
+        <tr><td>@slash_premium_required()</td><td>Owner + premium (slash)</td><td>Slash premium commands</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+const ALL_CMDS = [
+  [",ping","Check bot latency","everyone","utility",false],
+  [",userinfo [@user]","View detailed member info","everyone","utility",false],
+  [",avatar [@user]","View avatar in full size","everyone","utility",false],
+  [",serverinfo","View server statistics","everyone","utility",false],
+  [",membercount","Member/bot/human count","everyone","utility",false],
+  [",level [@user]","Check XP and level","everyone","levels",false],
+  [",leaderboard","Top 10 members by level","everyone","levels",false],
+  [",profile [@user]","View profile card","everyone","profile",false],
+  [",profile bio <text>","Set your bio","everyone","profile",false],
+  [",profile location <city>","Set your location","everyone","profile",false],
+  [",birthday [@user]","View a birthday","everyone","profile",false],
+  [",birthday set DD/MM","Set your birthday","everyone","profile",false],
+  [",afk [reason]","Set AFK status","everyone","utility",false],
+  [",ship @u1 @u2","Love compatibility","everyone","fun",false],
+  [",hot [@user]","Hotness meter","everyone","fun",false],
+  [",8ball <question>","Magic 8-ball","everyone","fun",false],
+  [",coinflip","Flip a coin","everyone","fun",false],
+  [",dice [sides]","Roll a dice","everyone","fun",false],
+  [",wouldyourather","Would you rather question","everyone","fun",false],
+  [",hug/pat/slap/kiss","Roleplay actions","everyone","fun",false],
+  [",boop/wave/stare","More roleplay actions","everyone","fun",false],
+  [",bonk/cuddle/highfive","More roleplay actions","everyone","fun",false],
+  [",roast [@user]","Gentle roast","everyone","fun",false],
+  [",praise [@user]","Send a compliment","everyone","fun",false],
+  [",translate <lang> <text>","Translate text","everyone","utility",false],
+  [",urban <word>","Urban Dictionary lookup","everyone","utility",false],
+  [",shrug [text]","Send a shrug","everyone","fun",false],
+  [",prefix","View prefix info","everyone","utility",false],
+  [",prefix self <symbol>","Personal prefix (all servers)","everyone","premium",true],
+  [",prefix selfremove","Remove personal prefix","everyone","utility",false],
+  [",kick @user [reason]","Kick a member","mod","mod",false],
+  [",ban @user [reason]","Ban a member","mod","mod",false],
+  [",unban <id>","Unban by user ID","mod","mod",false],
+  [",mute @user [minutes]","Timeout a member","mod","mod",false],
+  [",unmute @user","Remove timeout","mod","mod",false],
+  [",warn @user [reason]","Warn a member","mod","mod",false],
+  [",warnings [@user]","View warning count","mod","mod",false],
+  [",clearwarns @user","Clear all warnings","mod","mod",false],
+  [",softban @user","Ban + unban (clear msgs)","mod","mod",false],
+  [",nickname @user [name]","Change or reset nickname","mod","mod",false],
+  [",lock [#channel]","Lock a channel","mod","mod",false],
+  [",unlock [#channel]","Unlock a channel","mod","mod",false],
+  [",vclock [#vc]","Lock a voice channel","mod","mod",false],
+  [",vcunlock [#vc]","Unlock a voice channel","mod","mod",false],
+  [",purge <amount>","Delete messages","mod","mod",false],
+  [",purge bots <amount>","Delete bot messages","mod","mod",false],
+  [",purge @user <amount>","Delete user messages","mod","mod",false],
+  [",purge links","Delete link messages","mod","mod",false],
+  [",jail @user","Put member in jail","mod","mod",false],
+  [",unjail @user","Release from jail","mod","mod",false],
+  [",sticky <text>","Set sticky message","mod","utility",false],
+  [",unsticky","Remove sticky message","mod","utility",false],
+  [",announce <msg>","Send announcement","mod","admin",false],
+  [",giveaway <min> <w> <prize>","Start a giveaway","mod","admin",false],
+  [",mimic @user <msg>","Send as another member","mod","mod",false],
+  [",echo [#ch] <msg>","Send message as bot","mod","mod",false],
+  [",ticket close","Close ticket channel","mod","tickets",false],
+  [",ticket add/remove","Manage ticket members","mod","tickets",false],
+  [",hangup","End global call","mod","premium",false],
+  [",call","Connect to another server","mod","premium",true],
+  [",settings","Server config dashboard","admin","admin",false],
+  [",prefix set <symbol>","Set server prefix","admin","admin",false],
+  [",prefix remove","Reset server prefix","admin","admin",false],
+  [",welcome set/enable/disable","Configure welcome","admin","admin",false],
+  [",bye set/enable/disable","Configure bye messages","admin","admin",false],
+  [",logs set/disable","Configure log channel","admin","admin",false],
+  [",automod invite on/off","Toggle anti-invite","admin","admin",false],
+  [",role add/remove","Assign roles to members","admin","roles",false],
+  [",massrole add/remove","Bulk role assignment","admin","roles",false],
+  [",reactionrole add","Set up reaction role","admin","roles",false],
+  [",buttonrole","Button role panel","admin","roles",true],
+  [",boosterrole @role","Set booster reward role","admin","roles",false],
+  [",ticket setup","Send ticket panel","admin","tickets",false],
+  [",ticket staffrole @role","Set staff role","admin","tickets",false],
+  [",jailsetup","Create jail role + channel","admin","admin",false],
+  [",setupmute","Create muted roles","admin","admin",false],
+  [",quicksetup","Auto-create server layout","admin","admin",false],
+  [",embed create/send","Embed builder","admin","admin",false],
+  [",counter create","Live VC counter","admin","admin",false],
+  [",lockdown","Lock all channels","admin","mod",false],
+  [",unlockdown","Lift lockdown","admin","mod",false],
+  [",premiumrole @role","Set premium role","admin","admin",false],
+  [",setstatus <text>","Custom bot status","admin","premium",true],
+  [",bumpreminder on/off","Bump reminder","admin","premium",true],
+  [",vcsetup","VoiceMaster temp VCs","admin","premium",true],
+  [",setlevel @user <level>","Set member level","admin","levels",false],
+  [",resetxp [@user]","Reset XP","admin","levels",false],
+  [",premium add/remove/list","Manage premium","owner","admin",false],
+  [",aimode on/off","Toggle AI globally","owner","admin",false],
+  [",maintenance on/off","Maintenance mode","owner","admin",false],
+];
+
+function permBadge(p){
+  const map={everyone:['all','everyone'],mod:['mod','mod'],admin:['admin','admin'],owner:['owner','owner']};
+  const[cls,label]=map[p]||['all','all'];
+  return `<span class="badge badge-${cls}">${label}</span>`;
+}
+
+function renderTable(rows){
+  const tbody=document.getElementById('cmd-body');
+  tbody.innerHTML=rows.map(([cmd,desc,perm,cat,prem])=>
+    `<tr>
+      <td>${cmd}${prem?' <span class="badge badge-prem">Premium</span>':''}</td>
+      <td>${desc}</td>
+      <td>${permBadge(perm)}</td>
+      <td style="color:var(--color-text-muted);font-size:13px">${cat}</td>
+    </tr>`
+  ).join('');
+}
+
+function filterCmds(){
+  const perm=document.getElementById('perm-filter').value;
+  const cat=document.getElementById('cat-filter').value;
+  const premOnly=document.getElementById('prem-only').checked;
+  
+  const f=ALL_CMDS.filter(([cmd,desc,p,c,pr])=>{
+    if(perm!=='all'&&p!==perm)return false;
+    if(cat!=='all'&&c!==cat)return false;
+    if(premOnly&&!pr)return false;
+    return true;
+  });
+  renderTable(f);
+}
+
+renderTable(ALL_CMDS);
+</script>

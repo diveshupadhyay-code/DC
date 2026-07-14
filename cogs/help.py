@@ -6,10 +6,28 @@ from typing import Optional
 from utils.db import settings_col
 from utils.helpers import BOT_OWNER_ID, is_premium_user, is_premium_server
 
+EMOJI_HOME       = "<:home:1522637327149568100>"
+EMOJI_OWNER      = "<:owner:1522644329510862848>"
+EMOJI_DISBOARD   = "<:disboard:1522643098599948389>"
+EMOJI_BDAY_CAKE  = "<a:birthdaycake:1522641563153334423>"
+EMOJI_BDAY_WORK  = "<a:appyworkbirthday:1522641672968736961>"
+EMOJI_TADA       = "<a:tada:1522638851250720969>"
+EMOJI_BOT        = "<:bot:1522522753125716098>"
+EMOJI_COMMUNITY  = "<:communitymembers:1522522379090137128>"
+EMOJI_MEMBER     = "<:member:1522522354176233594>"
+EMOJI_DOT_GREEN  = "<:dotgreen:1522520298539319399>"
+EMOJI_DOT_BLACK  = "<:dotblack:1522520296450424853>"
+EMOJI_DOT_YELLOW = "<:dotyellow:1522520275944734851>"
+EMOJI_DOT_RED    = "<:dotred:1522520224304336927>"
+EMOJI_SPARKLE    = "<:sparkle:1522515167995367435>"
+EMOJI_HEART      = "<a:bounceheart:1522493780798734358>"
+EMOJI_GHOST      = "<a:ghosty:1522505832288354334>"
+EMOJI_GIVEAWAYS  = "<:giveaways:1522646168801382410>"
+
 PERM_ORDER  = {"everyone": 0, "mod": 1, "admin": 2, "owner": 3}
 PERM_LABELS = {"everyone": "Member", "mod": "Moderator", "admin": "Admin", "owner": "Bot Owner"}
-PERM_COLORS = {"everyone": 0x5865F2, "mod": 0x57F287, "admin": 0xED4245, "owner": 0xFFD700}
-PERM_BADGE  = {"mod": "Mod", "admin": "Admin", "owner": "Owner", "everyone": ""}
+PERM_COLORS = {"everyone": 0x5865F2, "mod": 0x57F287, "admin": 0xED4245, "owner": 0xF0C040}
+PERM_BADGE  = {"mod": f"{EMOJI_DOT_GREEN} Mod", "admin": f"{EMOJI_DOT_RED} Admin", "owner": f"{EMOJI_OWNER} Owner", "everyone": ""}
 
 def _user_level(member: discord.Member, owner_id: int) -> str:
     if member.id == owner_id:
@@ -23,7 +41,6 @@ def _user_level(member: discord.Member, owner_id: int) -> str:
 
 
 REGISTRY: dict[str, list[tuple]] = {
-
     "fun": [
         ("ship @user1 @user2",       "Check love compatibility between two members",   "everyone", False),
         ("hot [@user]",              "Check someone's hotness level",                  "everyone", False),
@@ -35,7 +52,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("praise [@user]",           "Send a compliment",                              "everyone", False),
         ("shrug [text]",             "Post a shrug  ¯_(ツ)_/¯",                       "everyone", False),
     ],
-
     "roleplay": [
         ("hug [@user]",    "Hug someone",                   "everyone", False),
         ("pat [@user]",    "Pat someone on the head",        "everyone", False),
@@ -49,7 +65,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("wave [@user]",   "Wave at someone",                "everyone", False),
         ("stare [@user]",  "Stare intensely at someone",     "everyone", False),
     ],
-
     "utility": [
         ("ping",                    "Check bot latency",                              "everyone", False),
         ("userinfo [@user]",        "View detailed info about a member",              "everyone", False),
@@ -62,7 +77,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("mimic @user <msg>",       "Send a message as another member via webhook",   "mod",      False),
         ("echo [#channel] <msg>",   "Send a message as the bot",                      "mod",      False),
     ],
-
     "profile": [
         ("profile [@user]",         "View a profile card",                            "everyone", False),
         ("profile bio <text>",      "Set your bio (max 150 chars)",                   "everyone", False),
@@ -73,14 +87,12 @@ REGISTRY: dict[str, list[tuple]] = {
         ("birthday remove",         "Remove your birthday",                           "everyone", False),
         ("birthday channel #ch",    "Set the birthday announcement channel",          "admin",    False),
     ],
-
     "levels": [
         ("level [@user]",       "View XP, level, and progress bar",               "everyone", False),
         ("leaderboard",         "Top 10 most active members by level",            "everyone", False),
         ("setlevel @user <n>",  "Manually set a member's level",                  "admin",    False),
         ("resetxp [@user]",     "Reset XP for a member or the whole server",      "admin",    False),
     ],
-
     "mod": [
         ("kick @user [reason]",           "Kick a member",                          "mod",   False),
         ("ban @user [reason]",            "Permanently ban a member",               "mod",   False),
@@ -113,14 +125,12 @@ REGISTRY: dict[str, list[tuple]] = {
         ("topic [text]",                  "Set or clear the channel topic",         "mod",   False),
         ("rename <name>",                 "Rename the current channel",             "mod",   False),
     ],
-
     "antispam": [
         ("antispam",                   "View anti-spam config",                    "admin", False),
         ("antispam enable",            "Enable the anti-spam system",              "admin", False),
         ("antispam disable",           "Disable the anti-spam system",             "admin", False),
         ("antispam set <n> <action>",  "Set threshold + action: mute/kick/ban",   "admin", False),
     ],
-
     "roles": [
         ("role add @user @role",              "Add a role to a member",             "admin", False),
         ("role remove @user @role",           "Remove a role from a member",        "admin", False),
@@ -131,7 +141,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("buttonrole @role Label | ...",      "Create a button role panel",         "admin", True),
         ("boosterrole @role",                 "Reward role for server boosters",    "admin", False),
     ],
-
     "tickets": [
         ("ticket setup",           "Send the ticket creation panel",          "admin", False),
         ("ticket staffrole @role", "Set which role can see all tickets",      "admin", False),
@@ -139,7 +148,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("ticket add @user",       "Add a user to this ticket",               "mod",   False),
         ("ticket remove @user",    "Remove a user from this ticket",          "mod",   False),
     ],
-
     "setup": [
         ("quicksetup",                 "Auto-create channels, categories, roles",          "admin", False),
         ("jailsetup",                  "Create Jailed role + private jail channel",        "admin", False),
@@ -159,7 +167,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("automod invite on/off",      "Block Discord invite links server-wide",           "admin", False),
         ("counter create <type> #vc",  "Live member/bot/channel counter in a VC name",     "admin", False),
     ],
-
     "admin": [
         ("settings",                        "Full server configuration dashboard",          "admin", False),
         ("prefix",                          "View current prefix",                          "everyone", False),
@@ -182,7 +189,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("togglelevels on/off",             "Toggle level-up announcements",                "admin", False),
         ("togglereactions on/off",          "Toggle auto heart reactions",                  "admin", False),
     ],
-
     "premium": [
         ("mypremium",                "Check your premium status and features",      "everyone", False),
         ("call",                     "Connect this channel to another server live", "admin",    True),
@@ -196,12 +202,10 @@ REGISTRY: dict[str, list[tuple]] = {
         ("bumpreminder on @role",    "Bump reminder with role ping",                "admin",    True),
         ("bumppingrole @role",       "Set the role pinged on bump reminder",        "admin",    True),
         ("setstatus <text>",         "Add custom text to bot rotating status",      "admin",    True),
-        ("prefix self <symbol>",     "Personal prefix that works in all servers",   "everyone", True),
         ("color",                    "Pick an accent color role for yourself",      "everyone", True),
         ("color setup",              "Create the default color role palette",       "admin",    True),
         ("serverpolish",             "One-click aesthetic server setup",            "admin",    True),
     ],
-
     "economy": [
         ("balance [@user]",           "View wallet + bank balance",                 "everyone", False),
         ("daily",                     "Claim daily reward — 150-350 HC, 24h",      "everyone", False),
@@ -218,23 +222,22 @@ REGISTRY: dict[str, list[tuple]] = {
         ("trade accept/decline <id>", "Accept or decline a pending trade",          "everyone", False),
         ("trade cancel <id>",         "Cancel your own trade",                      "everyone", False),
         ("trade list",                "See all your pending trades",                 "everyone", False),
+        ("invest in <type> <amount>", "Start investing (Safe, Market, Crypto, Business)","everyone", False),
+        ("invest check",              "See your active investment details",          "everyone", False),
+        ("invest collect",            "Collect matured investment returns",         "everyone", False),
+        ("invest withdraw",           "Exit investment early (10% penalty)",        "everyone", False),
         ("givecash @user <n>",        "Give HC to a user",                          "owner",    False),
         ("takecash @user <n>",        "Remove HC from a user",                      "owner",    False),
         ("resetcash @user",           "Reset a user's balance",                     "owner",    False),
     ],
-
-    "invest": [
-        ("market",                    "View all stocks with live prices",            "everyone", False),
-        ("stock <SYMBOL>",            "Detailed stock info + mini price chart",      "everyone", False),
-        ("buy <SYMBOL> <qty>",        "Buy shares of a stock using HC",              "everyone", False),
-        ("sell <SYMBOL> <qty/all>",   "Sell shares — see profit/loss",              "everyone", False),
-        ("portfolio [@user]",         "Holdings, current value, total P&L",         "everyone", False),
-        ("investlist",                "Top 10 investors by portfolio value",         "everyone", False),
-        ("setprice <SYM> <price>",    "Manually set a stock price",                 "owner",    False),
-        ("settrend <SYM> bull/bear",  "Set a stock trend",                          "owner",    False),
-        ("addstock <SYM> <p> <name>", "Add a new stock to the market",              "owner",    False),
+    "emojis": [
+        ("emoji steal <emojis>",      "Download & recreate custom emojis in the server", "admin", False),
+        ("emoji search <name>",       "Search active servers via Dropdown browser", "everyone", False),
+        ("emoji addid <id> <name>",   "Add a custom emoji directly by raw ID",      "admin",    False),
+        ("emoji remove",              "Remove a custom emoji from the server",      "admin",    False),
+        ("emoji rename",              "Rename a custom emoji in the server",        "admin",    False),
+        ("emoji list",                "Check static/animated slot usage dashboard",  "everyone", False),
     ],
-
     "games": [
         ("numguess start [max]",   "Start a number guessing game (1–100)",      "everyone", False),
         ("numguess stop",          "End the current number guess game",         "mod",      False),
@@ -244,7 +247,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("wordguess start",        "Start a word guessing game (Hangman)",       "everyone", False),
         ("wordguess stop",         "End the current word guess game",            "mod",      False),
     ],
-
     "extraperm": [
         ("extraperm setup",               "Create all 10 extra perm roles in one go",     "admin",    True),
         ("extraperm",                     "Dashboard — all roles, counts, who has them",  "admin",    True),
@@ -254,7 +256,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("extraperm info [rolename]",     "What a role grants and who has it",            "everyone", True),
         ("extraperm teardown",            "Delete all created extra perm roles",          "admin",    True),
     ],
-
     "levelroles": [
         ("levelroles setup",                 "Create Lvl 1-100 roles and 7 perm roles",  "admin",    True),
         ("levelroles",                       "Level roles dashboard",                     "admin",    True),
@@ -266,7 +267,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("levelroles grants [@member]",      "List extra roles a member has",             "everyone", True),
         ("levelroles teardown",              "Delete all 107 created roles",              "admin",    True),
     ],
-
     "owner": [
         ("premium add server <id>",         "Activate premium for a server",             "owner", False),
         ("premium add user <id>",           "Activate premium for a user",               "owner", False),
@@ -283,7 +283,6 @@ REGISTRY: dict[str, list[tuple]] = {
         ("dm @user <message>",              "Send a DM to any user as the bot",          "owner", False),
         ("sync [guild_id]",                 "Sync slash commands",                       "owner", False),
     ],
-
     "tracker": [
         ("invites [@user]",       "How many people a user has invited",           "everyone", False),
         ("inviteleaderboard",     "Top 10 inviters in the server",                "everyone", False),
@@ -305,25 +304,25 @@ ALL_COMMANDS = [
 ]
 
 CAT_META: dict[str, tuple[str, str, str]] = {
-    "fun":        ("Fun",          "<a:tada:1522638851250720969>", "Ship, 8ball, dice, roast, praise"),
-    "roleplay":   ("Roleplay",     "🫂", "Hug, pat, kiss, bonk, cuddle and more"),
-    "utility":    ("Utility",      "🔧", "Ping, userinfo, avatar, AFK, translate"),
-    "profile":    ("Profile",      "👤", "Profile card, bio, location, birthday"),
-    "levels":     ("Levels",       "⭐", "XP system, level, leaderboard"),
-    "mod":        ("Moderation",   "🔨", "Kick, ban, mute, warn, lock, purge, jail"),
-    "antispam":   ("Anti-Spam",    "🛡", "Auto-detect and punish spam floods"),
-    "roles":      ("Roles",        "🏷", "Reaction roles, button roles, boosters"),
-    "tickets":    ("Tickets",      "🎫", "Support ticket system"),
-    "setup":      ("Server Setup", "⚙", "Welcome, bye, logs, automod, counters"),
-    "admin":      ("Admin",        "🔑", "Prefix, giveaway, announce, embeds"),
-    "premium":    ("Premium",      "<:sparkle:1522515167995367435>", "AI chat, VoiceMaster, bump reminder"),
-    "economy":    ("Economy",      "💰", "Balance, daily, work, slots, trade"),
-    "invest":     ("Invest",       "📈", "Stocks, buy/sell, portfolio, P&L"),
-    "games":      ("Games",        "🎮", "Number guess, counting, word guess"),
-    "extraperm":  ("Extra Perms",  "🎖", "Gif, React, Media, Ext perm roles"),
-    "levelroles": ("Level Roles",  "🏅", "Auto roles Lvl 1-100 with permissions"),
-    "owner":      ("Owner",        "<:owner:1522644329510862848>", "Premium mgmt, AI toggle, server tools"),
-    "tracker":    ("Tracker",      "📊", "Invite tracker, message counter"),
+    "fun":        ("Fun",          EMOJI_TADA,      "Ship, 8ball, dice, roast, praise"),
+    "roleplay":   ("Roleplay",     EMOJI_HEART,     "Hug, pat, kiss, bonk, cuddle and more"),
+    "utility":    ("Utility",      EMOJI_SPARKLE,   "Ping, userinfo, avatar, AFK, translate"),
+    "profile":    ("Profile",      EMOJI_BDAY_CAKE, "Profile card, bio, location, birthday"),
+    "levels":     ("Levels",       EMOJI_DOT_YELLOW,"XP system, level, leaderboard"),
+    "mod":        ("Moderation",   EMOJI_DOT_RED,   "Kick, ban, mute, warn, lock, purge, jail"),
+    "antispam":   ("Anti-Spam",    EMOJI_DOT_BLACK, "Auto-detect and punish spam floods"),
+    "roles":      ("Roles",        EMOJI_COMMUNITY, "Reaction roles, button roles, boosters"),
+    "tickets":    ("Tickets",      EMOJI_MEMBER,    "Support ticket system"),
+    "setup":      ("Server Setup", EMOJI_HOME,      "Welcome, bye, logs, automod, counters"),
+    "admin":      ("Admin",        EMOJI_GIVEAWAYS, "Prefix, giveaway, announce, embeds"),
+    "premium":    ("Premium",      EMOJI_DISBOARD,  "AI chat, VoiceMaster, bump reminder"),
+    "economy":    ("Economy",      EMOJI_DOT_GREEN, "Balance, daily, work, slots, trade, invest"),
+    "emojis":     ("Custom Emojis",EMOJI_BOT,       "Steal, search, addid, list dashboard"),
+    "games":      ("Games",        EMOJI_GHOST,     "Number guess, counting, word guess"),
+    "extraperm":  ("Extra Perms",  EMOJI_SPARKLE,   "Gif, React, Media, Ext perm roles"),
+    "levelroles": ("Level Roles",  EMOJI_BDAY_WORK, "Auto roles Lvl 1-100 with permissions"),
+    "owner":      ("Owner",        EMOJI_OWNER,     "Premium mgmt, AI toggle, server tools"),
+    "tracker":    ("Tracker",      EMOJI_COMMUNITY, "Invite tracker, message counter"),
 }
 
 CAT_ORDER = list(CAT_META.keys())
@@ -332,14 +331,14 @@ CAT_ORDER = list(CAT_META.keys())
 def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
                       is_prem: bool, color: int) -> discord.Embed:
     embed = discord.Embed(
-        title="Happy — Help",
+        title=f"{EMOJI_HOME} Happy Help",
         color=color,
         description=(
             f"**Prefix:** `{pfx}`  •  **Slash:** `/help`\n"
             f"**Role:** {PERM_LABELS[user_level]}"
-            + ("  •  <:sparkle:1522515167995367435> Premium" if is_prem else "") + "\n\n"
-            f"Use the **dropdown** to jump to a category.\n"
-            f"Use **arrows** to page through all categories.\n"
+            + (f"  •  {EMOJI_SPARKLE} Premium" if is_prem else "") + "\n\n"
+            f"Use the dropdown below to jump to a category.\n"
+            f"Use the arrows to page through everything.\n"
             f"Type `{pfx}help <word>` to search commands."
         )
     )
@@ -371,26 +370,14 @@ def _build_home_embed(bot: discord.Client, pfx: str, user_level: str,
             member_cats.append(entry)
 
     if member_cats:
-        embed.add_field(
-            name="For Everyone",
-            value="\n".join(member_cats),
-            inline=True
-        )
+        embed.add_field(name="For Everyone", value="\n".join(member_cats), inline=True)
     if staff_cats:
-        embed.add_field(
-            name="Staff Only",
-            value="\n".join(staff_cats),
-            inline=True
-        )
+        embed.add_field(name="Staff Only", value="\n".join(staff_cats), inline=True)
     if prem_cats:
-        embed.add_field(
-            name="<:sparkle:1522515167995367435> Premium",
-            value="\n".join(prem_cats),
-            inline=True
-        )
+        embed.add_field(name=f"{EMOJI_SPARKLE} Premium", value="\n".join(prem_cats), inline=True)
 
     embed.set_footer(
-        text="✨ Premium active — mention Happy to start AI chat" if is_prem
+        text="Premium active — mention Happy to start AI chat" if is_prem
         else "Tip: ,mypremium to see premium features"
     )
     return embed
@@ -420,25 +407,22 @@ def _build_category_embed(cat: str, pfx: str, user_level: str,
 
     page_info = f"  ·  Page {page+1}/{total_pages}" if total_pages > 1 else ""
     embed = discord.Embed(
-        title=f"{emoji}  {label}",
+        title=f"{emoji} {label}",
         description=f"{desc}{page_info}",
         color=color
     )
 
     if not visible:
-        embed.description = (
-            f"{desc}\n\n"
-            "No commands available at your permission level."
-        )
+        embed.description = f"{desc}\n\nNothing available at your permission level."
         if locked:
-            embed.set_footer(text=f"🔒 {len(locked)} command(s) require higher permissions or Premium")
+            embed.set_footer(text=f"{EMOJI_DOT_RED} {len(locked)} command(s) need higher permissions or Premium")
         return embed, 1
 
     lines = []
     for syn, d, perm, prem in chunk:
         badges = []
         if prem:
-            badges.append("<:sparkle:1522515167995367435>")
+            badges.append(EMOJI_SPARKLE)
         if perm in ("mod", "admin", "owner"):
             badges.append(PERM_BADGE[perm])
         badge_str = "  " + "  ".join(badges) if badges else ""
@@ -453,7 +437,7 @@ def _build_category_embed(cat: str, pfx: str, user_level: str,
             lock_lines.append(f"`{pfx}{syn}` — needs {reason}")
         if len(locked) > 5:
             lock_lines.append(f"…and {len(locked)-5} more")
-        embed.add_field(name=f"🔒 Locked  ({len(locked)})", value="\n".join(lock_lines), inline=False)
+        embed.add_field(name=f"{EMOJI_DOT_RED} Locked  ({len(locked)})", value="\n".join(lock_lines), inline=False)
 
     footer_parts = [f"{len(visible)} commands"]
     if total_pages > 1:
@@ -471,13 +455,10 @@ def _build_search_embed(query: str, pfx: str, user_level: str, is_prem: bool) ->
     ]
 
     color = PERM_COLORS[user_level]
-    embed = discord.Embed(title=f"Search  —  {query}", color=color)
+    embed = discord.Embed(title=f"Search — {query}", color=color)
 
     if not results:
-        embed.description = (
-            f"No commands found for `{query}`.\n"
-            f"Try `{pfx}help` to browse all categories."
-        )
+        embed.description = f"No commands found for `{query}`.\nTry `{pfx}help` to browse all categories."
         return embed
 
     accessible   = []
@@ -486,7 +467,7 @@ def _build_search_embed(query: str, pfx: str, user_level: str, is_prem: bool) ->
         can = PERM_ORDER[perm] <= PERM_ORDER[user_level] and (not prem or is_prem)
         cat_label = CAT_META[cat][0]
         if can:
-            badge = " <:sparkle:1522515167995367435>" if prem else ""
+            badge = f" {EMOJI_SPARKLE}" if prem else ""
             accessible.append(f"`{pfx}{syn}`{badge}  —  {desc}  `#{cat_label}`")
         else:
             reason = "Premium" if (prem and not is_prem) else PERM_LABELS[perm]
@@ -514,6 +495,7 @@ class HelpView(discord.ui.View):
         self.color       = PERM_COLORS[user_level]
         self.current_cat: Optional[str] = start_cat
         self.cat_page: int = 0
+        self.message: Optional[discord.Message] = None
         self._rebuild_components()
 
     def _rebuild_components(self):
@@ -523,7 +505,8 @@ class HelpView(discord.ui.View):
         on_home = self.current_cat is None
 
         home_btn = discord.ui.Button(
-            label="🛖 Home",
+            label="Home",
+            emoji=EMOJI_HOME,
             style=discord.ButtonStyle.secondary,
             custom_id="help_home",
             row=1,
@@ -533,7 +516,7 @@ class HelpView(discord.ui.View):
         self.add_item(home_btn)
 
         prev_btn = discord.ui.Button(
-            label="◀ Prev",
+            label="Prev",
             style=discord.ButtonStyle.primary,
             custom_id="help_prev",
             row=1,
@@ -543,7 +526,7 @@ class HelpView(discord.ui.View):
         self.add_item(prev_btn)
 
         next_btn = discord.ui.Button(
-            label="Next ▶",
+            label="Next",
             style=discord.ButtonStyle.primary,
             custom_id="help_next",
             row=1,
@@ -582,9 +565,7 @@ class HelpView(discord.ui.View):
 
     def build_embed(self) -> discord.Embed:
         if self.current_cat is None:
-            return _build_home_embed(
-                self.bot, self.pfx, self.user_level, self.is_prem, self.color
-            )
+            return _build_home_embed(self.bot, self.pfx, self.user_level, self.is_prem, self.color)
         embed, _ = _build_category_embed(
             self.current_cat, self.pfx, self.user_level,
             self.is_prem, self.cat_page, self.PER_PAGE
@@ -661,6 +642,11 @@ class HelpView(discord.ui.View):
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except:
+                pass
 
 
 class CategorySelect(discord.ui.Select):
@@ -686,21 +672,14 @@ class CategorySelect(discord.ui.Select):
         if not options:
             options.append(discord.SelectOption(label="No categories available", value="__none__"))
 
-        super().__init__(
-            placeholder="Jump to a category...",
-            options=options[:25],
-            row=0
-        )
+        super().__init__(placeholder="Jump to a category...", options=options[:25], row=0)
         self.user_level = user_level
         self.is_prem    = is_prem
 
     async def callback(self, interaction: discord.Interaction):
         view: HelpView = self.view
-        if interaction.user.id != view.author_id:
-            return await interaction.response.send_message(
-                "This help menu isn't yours. Type `,help` to open your own.",
-                ephemeral=True
-            )
+        if not await view._guard(interaction):
+            return
         val = self.values[0]
         if val == "__none__":
             return await interaction.response.defer()
@@ -761,7 +740,7 @@ class Help(commands.Cog):
             is_prem=is_prem,
             start_cat=start_cat
         )
-        await ctx.reply(embed=view.build_embed(), view=view)
+        view.message = await ctx.reply(embed=view.build_embed(), view=view)
 
     @app_commands.command(name="help", description="View Happy's command list")
     @app_commands.describe(
@@ -769,24 +748,21 @@ class Help(commands.Cog):
         search="Search for a command by name or description"
     )
     @app_commands.choices(category=[
-        app_commands.Choice(name="<a:tada:1522638851250720969> Fun",          value="fun"),
-        app_commands.Choice(name="🫂 Roleplay",     value="roleplay"),
-        app_commands.Choice(name="🔧 Utility",      value="utility"),
-        app_commands.Choice(name="👤 Profile",      value="profile"),
-        app_commands.Choice(name="⭐ Levels",       value="levels"),
-        app_commands.Choice(name="🔨 Moderation",   value="mod"),
-        app_commands.Choice(name="🛡 Anti-Spam",   value="antispam"),
-        app_commands.Choice(name="🏷 Roles",       value="roles"),
-        app_commands.Choice(name="🎫 Tickets",      value="tickets"),
-        app_commands.Choice(name="⚙ Server Setup", value="setup"),
-        app_commands.Choice(name="🔑 Admin",        value="admin"),
-        app_commands.Choice(name="<:sparkle:1522515167995367435> Premium",       value="premium"),
-        app_commands.Choice(name="💰 Economy",      value="economy"),
-        app_commands.Choice(name="📈 Invest",       value="invest"),
-        app_commands.Choice(name="🎮 Games",        value="games"),
-        app_commands.Choice(name="🎖 Extra Perms",  value="extraperm"),
-        app_commands.Choice(name="🏅 Level Roles",  value="levelroles"),
-        app_commands.Choice(name="📊 Tracker",      value="tracker"),
+        app_commands.Choice(name="Fun",          value="fun"),
+        app_commands.Choice(name="Roleplay",     value="roleplay"),
+        app_commands.Choice(name="Utility",      value="utility"),
+        app_commands.Choice(name="Profile",      value="profile"),
+        app_commands.Choice(name="Levels",       value="levels"),
+        app_commands.Choice(name="Moderation",   value="mod"),
+        app_commands.Choice(name="Anti-Spam",    value="antispam"),
+        app_commands.Choice(name="Roles",        value="roles"),
+        app_commands.Choice(name="Tickets",      value="tickets"),
+        app_commands.Choice(name="Server Setup", value="setup"),
+        app_commands.Choice(name="Admin",        value="admin"),
+        app_commands.Choice(name="Premium",      value="premium"),
+        app_commands.Choice(name="Economy",      value="economy"),
+        app_commands.Choice(name="Custom Emojis",value="emojis"),
+        app_commands.Choice(name="Games",        value="games"),
     ])
     async def slash_help(
         self,
@@ -811,7 +787,7 @@ class Help(commands.Cog):
             is_prem=is_prem,
             start_cat=start_cat
         )
-        await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
+        view.message = await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
 
 
 async def setup(bot):

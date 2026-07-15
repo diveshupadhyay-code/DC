@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 import aiohttp, asyncio, urllib.parse, datetime
 from datetime import timezone
@@ -10,14 +10,57 @@ from utils.db import (
 )
 from utils.helpers import BOT_OWNER_ID, ctx_mod, ctx_admin
 
-
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.birthday_check.start()
+
+    def cog_unload(self):
+        self.birthday_check.cancel()
+
+    @tasks.loop(hours=24)
+    async def birthday_check(self):
+        await self.bot.wait_until_ready()
+        now = datetime.datetime.now(timezone.utc)
+        current_day = now.day
+        current_month = now.month
+
+        cursor = birthdays_col.find({"day": current_day, "month": current_month})
+        async for doc in cursor:
+            guild_id = doc.get("guild_id")
+            user_id = doc.get("user_id")
+            
+            guild = self.bot.get_guild(int(guild_id))
+            if not guild:
+                continue
+                
+            member = guild.get_member(int(user_id))
+            if not member:
+                continue
+
+            settings = await settings_col.find_one({"_id": str(guild_id)}) or {}
+            channel_id = settings.get("birthday_channel")
+            
+            channel = None
+            if channel_id:
+                channel = guild.get_channel(int(channel_id))
+            if not channel:
+                channel = guild.system_channel
+
+            if channel:
+                embed = discord.Embed(
+                    description=f"<a:tada:1522638851250720969> **Happy Birthday {member.mention}!** Many happy returns of the day! <a:birthdaycake:1522641563153334423>",
+                    color=0x57F287
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                try:
+                    await channel.send(embed=embed)
+                except:
+                    pass
 
     @commands.command()
     async def ping(self, ctx):
-        lat   = round(self.bot.latency * 1000)
+        lat = round(self.bot.latency * 1000)
         color = 0x57F287 if lat < 100 else (0xFEE75C if lat < 200 else 0xED4245)
         embed = discord.Embed(
             description=f"⚡ **Pong!** Latency: `{lat}ms`",
@@ -27,7 +70,7 @@ class Utility(commands.Cog):
 
     @app_commands.command(name="ping", description="Check bot latency")
     async def slash_ping(self, interaction: discord.Interaction):
-        lat   = round(self.bot.latency * 1000)
+        lat = round(self.bot.latency * 1000)
         color = 0x57F287 if lat < 100 else (0xFEE75C if lat < 200 else 0xED4245)
         embed = discord.Embed(
             description=f"⚡ **Pong!** Latency: `{lat}ms`",
@@ -38,78 +81,84 @@ class Utility(commands.Cog):
     @commands.command(aliases=["whois", "ui"])
     async def userinfo(self, ctx, member: discord.Member = None):
         member = member or ctx.author
-        now       = datetime.datetime.now(timezone.utc)
-        created   = member.created_at.replace(tzinfo=timezone.utc)
-        age_days  = (now - created).days
+        now = datetime.datetime.now(timezone.utc)
+        created = member.created_at.replace(tzinfo=timezone.utc)
+        age_days = (now - created).days
 
         roles = [r.mention for r in reversed(member.roles) if r != ctx.guild.default_role]
         roles_str = " ".join(roles[:10]) + (f" `+{len(roles)-10} more`" if len(roles) > 10 else "") if roles else "None"
 
         status_emoji = {
-            discord.Status.online:    "🟢 Online",
-            discord.Status.idle:      "🟡 Idle",
-            discord.Status.dnd:       "🔴 Do Not Disturb",
-            discord.Status.offline:   "⚫ Offline",
+            discord.Status.online: "🟢 Online",
+            discord.Status.idle: "🟡 Idle",
+            discord.Status.dnd: "🔴 Do Not Disturb",
+            discord.Status.offline: "⚫ Offline",
         }
         status_str = status_emoji.get(member.status, "⚫ Offline")
 
-        embed = discord.Embed(
-            title=f"User Info: {member.name}",
-            color=member.color if member.color != discord.Color.default() else 0x2B2D31
-        )
+        embed = discord.Embed(color=member.color if member.color != discord.Color.default() else 0x2B2D31)
+        embed.set_author(name=f"{member.name}", icon_url=member.display_avatar.url)
         embed.set_thumbnail(url=member.display_avatar.url)
+        
         embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
         embed.add_field(name="Status", value=status_str, inline=True)
-        embed.add_field(name="Bot", value="`Yes` ✅" if member.bot else "`No`", inline=True)
-        embed.add_field(name="Joined Server", value=f"`{member.joined_at.strftime('%d %b %Y')}`" if member.joined_at else "`Unknown`", inline=True)
-        embed.add_field(name="Created Account", value=f"`{created.strftime('%d %b %Y')}` ({age_days} days ago)", inline=True)
+        embed.add_field(name="Bot Account", value="`Yes`" if member.bot else "`No`", inline=True)
+        
+        embed.add_field(name="Joined Server", value=f"<t:{int(member.joined_at.timestamp())}:D>" if member.joined_at else "`Unknown`", inline=True)
+        embed.add_field(name="Created Account", value=f"<t:{int(created.timestamp())}:D> ({age_days} days ago)", inline=True)
         embed.add_field(name="Top Role", value=member.top_role.mention, inline=True)
         
         if member.premium_since:
-            embed.add_field(name="Boosting Since", value=f"`{member.premium_since.strftime('%d %b %Y')}`", inline=True)
+            embed.add_field(name="Server Boosting", value=f"<t:{int(member.premium_since.timestamp())}:D>", inline=True)
             
         embed.add_field(name=f"Roles [{len(roles)}]", value=roles_str, inline=False)
-        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"Requested by {ctx.author.name}")
         await ctx.reply(embed=embed)
 
     @app_commands.command(name="userinfo", description="Get information about a user")
     async def slash_userinfo(self, interaction: discord.Interaction, member: discord.Member = None):
         member = member or interaction.user
-        now    = datetime.datetime.now(timezone.utc)
-        age    = (now - member.created_at.replace(tzinfo=timezone.utc)).days
+        now = datetime.datetime.now(timezone.utc)
+        created = member.created_at.replace(tzinfo=timezone.utc)
+        age = (now - created).days
         
-        embed  = discord.Embed(title=f"User Info: {member.name}", color=0x2B2D31)
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(name=f"{member.name}", icon_url=member.display_avatar.url)
         embed.set_thumbnail(url=member.display_avatar.url)
+        
         embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
-        embed.add_field(name="Joined Server", value=f"`{member.joined_at.strftime('%d %b %Y')}`" if member.joined_at else "`N/A`", inline=True)
-        embed.add_field(name="Created Account", value=f"`{member.created_at.strftime('%d %b %Y')}` ({age} days ago)", inline=True)
+        embed.add_field(name="Joined Server", value=f"<t:{int(member.joined_at.timestamp())}:D>" if member.joined_at else "`N/A`", inline=True)
+        embed.add_field(name="Created Account", value=f"<t:{int(created.timestamp())}:D> ({age} days ago)", inline=True)
         embed.add_field(name="Top Role", value=member.top_role.mention, inline=True)
+        
         await interaction.response.send_message(embed=embed)
 
     @commands.command(aliases=["av", "pfp"])
     async def avatar(self, ctx, member: discord.Member = None):
         member = member or ctx.author
-        embed  = discord.Embed(title=f"{member.name}'s Avatar", color=0x2B2D31)
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(name=f"{member.name}'s Avatar", icon_url=member.display_avatar.url)
         embed.set_image(url=member.display_avatar.url)
-        embed.add_field(
-            name="Links",
-            value=f"[PNG]({member.display_avatar.with_format('png').url}) · "
-                  f"[JPG]({member.display_avatar.with_format('jpg').url}) · "
-                  f"[WEBP]({member.display_avatar.with_format('webp').url})"
-        )
+        
+        png = member.display_avatar.with_format('png').url
+        jpg = member.display_avatar.with_format('jpg').url
+        webp = member.display_avatar.with_format('webp').url
+        embed.description = f"🔗 [PNG]({png}) · [JPG]({jpg}) · [WEBP]({webp})"
+        
         await ctx.reply(embed=embed)
 
     @app_commands.command(name="avatar", description="View a user's avatar")
     async def slash_avatar(self, interaction: discord.Interaction, member: discord.Member = None):
         member = member or interaction.user
-        embed  = discord.Embed(title=f"{member.name}'s Avatar", color=0x2B2D31)
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(name=f"{member.name}'s Avatar", icon_url=member.display_avatar.url)
         embed.set_image(url=member.display_avatar.url)
         await interaction.response.send_message(embed=embed)
 
     @commands.command(aliases=["si", "server", "guildinfo"])
     async def serverinfo(self, ctx):
-        g      = ctx.guild
-        bots   = sum(1 for m in g.members if m.bot)
+        g = ctx.guild
+        bots = sum(1 for m in g.members if m.bot)
         humans = g.member_count - bots
         online = sum(1 for m in g.members if m.status != discord.Status.offline and not m.bot)
 
@@ -138,12 +187,13 @@ class Utility(commands.Cog):
 
     @commands.command(aliases=["mc"])
     async def membercount(self, ctx):
-        g      = ctx.guild
-        bots   = sum(1 for m in g.members if m.bot)
+        g = ctx.guild
+        bots = sum(1 for m in g.members if m.bot)
         humans = g.member_count - bots
         online = sum(1 for m in g.members if m.status != discord.Status.offline and not m.bot)
         
-        embed  = discord.Embed(title=f"Member Count", color=0x2B2D31)
+        embed = discord.Embed(color=0x2B2D31)
+        embed.set_author(name=f"{g.name} Count", icon_url=g.icon.url if g.icon else None)
         embed.add_field(name="Total Members", value=f"`{g.member_count}`", inline=True)
         embed.add_field(name="Humans", value=f"`{humans}`", inline=True)
         embed.add_field(name="Bots", value=f"`{bots}`", inline=True)
@@ -231,17 +281,17 @@ class Utility(commands.Cog):
         await ctx.reply("Sticky message removed.", delete_after=4)
 
     LANG_MAP = {
-        "english":    "en", "hindi":      "hi", "french":     "fr",
-        "spanish":    "es", "german":     "de", "japanese":   "ja",
-        "russian":    "ru", "arabic":     "ar", "portuguese": "pt",
-        "italian":    "it", "korean":     "ko", "chinese":    "zh",
-        "turkish":    "tr", "dutch":      "nl", "polish":     "pl",
-        "swedish":    "sv", "norwegian":  "no", "danish":     "da",
-        "finnish":    "fi", "greek":      "el", "hebrew":     "iw",
-        "thai":       "th", "vietnamese": "vi", "indonesian": "id",
-        "malay":      "ms", "urdu":       "ur", "bengali":    "bn",
-        "punjabi":    "pa", "tamil":      "ta", "telugu":     "te",
-        "marathi":    "mr", "gujarati":   "gu", "kannada":    "kn",
+        "english": "en", "hindi": "hi", "french": "fr",
+        "spanish": "es", "german": "de", "japanese": "ja",
+        "russian": "ru", "arabic": "ar", "portuguese": "pt",
+        "italian": "it", "korean": "ko", "chinese": "zh",
+        "turkish": "tr", "dutch": "nl", "polish": "pl",
+        "swedish": "sv", "norwegian": "no", "danish": "da",
+        "finnish": "fi", "greek": "el", "hebrew": "iw",
+        "thai": "th", "vietnamese": "vi", "indonesian": "id",
+        "malay": "ms", "urdu": "ur", "bengali": "bn",
+        "punjabi": "pa", "tamil": "ta", "telugu": "te",
+        "marathi": "mr", "gujarati": "gu", "kannada": "kn",
     }
 
     @commands.command(aliases=["tr"])
@@ -283,9 +333,14 @@ class Utility(commands.Cog):
             f"?client=gtx&sl=auto&tl={resolved_lang_code}&dt=t&q={urllib.parse.quote(text_to_translate)}"
         )
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*"
+        }
+
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers={"Content-Type": "application/json"}) as response:
+                async with session.get(api_url, headers=headers) as response:
                     if response.status != 200:
                         return await ctx.reply("Translation service error. Try again later.")
                     response_data = await response.json(content_type=None)
@@ -296,7 +351,8 @@ class Utility(commands.Cog):
             if not translated_segments.strip():
                 return await ctx.reply("Translation came back empty.")
 
-            embed = discord.Embed(title="Translation", color=0x2B2D31)
+            embed = discord.Embed(color=0x2B2D31)
+            embed.set_author(name="Google Translate", icon_url="https://upload.wikimedia.org/wikipedia/commons/d/d7/Google_Translate_logo.svg")
             embed.add_field(
                 name=f"Original ({str(detected_language).upper()})",
                 value=f"```text\n{text_to_translate[:900]}```",
@@ -307,7 +363,6 @@ class Utility(commands.Cog):
                 value=f"```text\n{translated_segments[:900]}```",
                 inline=False
             )
-            embed.set_footer(text="Google Translate")
             await ctx.reply(embed=embed)
 
         except Exception as error_log:
@@ -335,7 +390,7 @@ class Utility(commands.Cog):
 
         top = data["list"][0]
         definition = top.get("definition", "").replace("[", "").replace("]", "").strip()
-        example    = top.get("example",    "").replace("[", "").replace("]", "").strip()
+        example = top.get("example", "").replace("[", "").replace("]", "").strip()
 
         if not definition:
             return await ctx.reply(f"Definition for **{word}** was empty.")
@@ -359,24 +414,24 @@ class Utility(commands.Cog):
 
         doc = await profiles_col.find_one({
             "guild_id": str(ctx.guild.id),
-            "user_id":  str(member.id)
+            "user_id": str(member.id)
         })
         bio = doc.get("bio", "Not set. Use `,profile bio <text>`") if doc else "Not set."
         loc = doc.get("location", "Not set") if doc else "Not set"
 
         lvl_doc = await levels_col.find_one({
             "guild_id": str(ctx.guild.id),
-            "user_id":  str(member.id)
+            "user_id": str(member.id)
         })
         level = lvl_doc.get("level", 0) if lvl_doc else 0
-        xp    = lvl_doc.get("xp",    0) if lvl_doc else 0
-        nxt   = (level + 1) * 100
-        pct   = int((xp / nxt) * 10) if nxt else 0
-        bar   = "█" * pct + "░" * (10 - pct)
+        xp = lvl_doc.get("xp", 0) if lvl_doc else 0
+        nxt = (level + 1) * 100
+        pct = int((xp / nxt) * 10) if nxt else 0
+        bar = "█" * pct + "░" * (10 - pct)
 
         bday_doc = await birthdays_col.find_one({
             "guild_id": str(ctx.guild.id),
-            "user_id":  str(member.id)
+            "user_id": str(member.id)
         })
         bday = bday_doc.get("date", "Not set") if bday_doc else "Not set"
 
@@ -391,7 +446,7 @@ class Utility(commands.Cog):
         embed.add_field(name="Roles", value=f"`{len(member.roles) - 1}`", inline=True)
         embed.add_field(
             name="Joined",
-            value=f"`{member.joined_at.strftime('%d %b %Y')}`" if member.joined_at else "`Unknown`",
+            value=f"<t:{int(member.joined_at.timestamp())}:D>" if member.joined_at else "`Unknown`",
             inline=True
         )
         embed.set_footer(text=f"User ID: {member.id}")
@@ -434,9 +489,9 @@ class Utility(commands.Cog):
     @commands.group(aliases=["bday"], invoke_without_command=True)
     async def birthday(self, ctx, member: discord.Member = None):
         member = member or ctx.author
-        doc    = await birthdays_col.find_one({
+        doc = await birthdays_col.find_one({
             "guild_id": str(ctx.guild.id),
-            "user_id":  str(member.id)
+            "user_id": str(member.id)
         })
         if not doc:
             return await ctx.reply(
@@ -496,7 +551,7 @@ class Utility(commands.Cog):
     async def birthday_remove(self, ctx):
         result = await birthdays_col.delete_one({
             "guild_id": str(ctx.guild.id),
-            "user_id":  str(ctx.author.id)
+            "user_id": str(ctx.author.id)
         })
         if result.deleted_count:
             await ctx.reply("Birthday removed.")
@@ -507,7 +562,7 @@ class Utility(commands.Cog):
     @commands.has_permissions(manage_guild=True)
     async def birthday_channel(self, ctx, channel: discord.TextChannel = None):
         if channel is None:
-            gs  = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
+            gs = await settings_col.find_one({"_id": str(ctx.guild.id)}) or {}
             cid = gs.get("birthday_channel")
             if cid:
                 ch = ctx.guild.get_channel(int(cid))
@@ -545,9 +600,9 @@ class Utility(commands.Cog):
     @app_commands.describe(member="Member to check (leave blank for yourself)")
     async def slash_birthday(self, interaction: discord.Interaction, member: discord.Member = None):
         member = member or interaction.user
-        doc    = await birthdays_col.find_one({
+        doc = await birthdays_col.find_one({
             "guild_id": str(interaction.guild.id),
-            "user_id":  str(member.id)
+            "user_id": str(member.id)
         })
         if not doc:
             await interaction.response.send_message(
@@ -732,7 +787,7 @@ class Utility(commands.Cog):
     @commands.has_permissions(manage_messages=True)
     async def emb_send(self, ctx, channel: discord.TextChannel = None):
         channel = channel or ctx.channel
-        draft   = await embed_col.find_one({"guild_id": str(ctx.guild.id), "author_id": str(ctx.author.id)})
+        draft = await embed_col.find_one({"guild_id": str(ctx.guild.id), "author_id": str(ctx.author.id)})
         if not draft:
             return await ctx.reply("No draft found to send.")
         try:
@@ -762,7 +817,6 @@ class Utility(commands.Cog):
             await ctx.reply("Draft deleted.")
         else:
             await ctx.reply("No draft found to delete.")
-
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))

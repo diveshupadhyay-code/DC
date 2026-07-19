@@ -6,7 +6,8 @@ from datetime import datetime as dt, timezone, timedelta
 
 from utils.db import (
     settings_col, afk_col, sticky_col, bump_col,
-    levels_col, server_status_col, global_status_col
+    levels_col, server_status_col, global_status_col,
+    birthdays_col
 )
 from utils.helpers import (
     BOT_OWNER_ID, log_event, get_server_data,
@@ -61,11 +62,8 @@ class Core(commands.Cog):
                     gov = None
 
         if gov:
-            atype = getattr(discord.ActivityType,
-                            gov.get("activity", "watching"),
-                            discord.ActivityType.watching)
             await self.bot.change_presence(
-                activity=discord.Activity(type=atype, name=gov["status"])
+                activity=discord.CustomActivity(name=gov["status"])
             )
             return
 
@@ -95,27 +93,42 @@ class Core(commands.Cog):
 
         text = random.choice(pool)
         await self.bot.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching, name=text
-            )
+            activity=discord.CustomActivity(name=text)
         )
 
     @tasks.loop(hours=24)
     async def birthday_loop(self):
         await self.bot.wait_until_ready()
-        from utils.db import birthdays_col
         now = dt.now(IST)
-        async for doc in birthdays_col.find({"day": now.day, "month": now.month}):
+        
+        cursor = birthdays_col.find({
+            "day": now.day, 
+            "month": now.month
+        })
+        
+        async for doc in cursor:
             guild = self.bot.get_guild(int(doc.get("guild_id", 0)))
             if not guild:
                 continue
+            
             member = guild.get_member(int(doc["user_id"]))
             if not member:
-                continue
+                try:
+                    member = await guild.fetch_member(int(doc["user_id"]))
+                except:
+                    continue
+                    
             gs  = await settings_col.find_one({"_id": str(guild.id)})
             cid = (gs.get("birthday_channel")
                    or gs.get("welcome_channel")) if gs else None
+            
             ch  = self.bot.get_channel(int(cid)) if cid else guild.system_channel
+            if not ch and cid:
+                try:
+                    ch = await self.bot.fetch_channel(int(cid))
+                except:
+                    ch = guild.system_channel
+                    
             if ch:
                 embed = discord.Embed(
                     title="<a:appyworkbirthday:1522641672968736961> Happy Birthday!",
@@ -124,7 +137,10 @@ class Core(commands.Cog):
                 )
                 embed.set_thumbnail(url=member.display_avatar.url)
                 embed.set_footer(text="Use ,birthday set DD/MM to register your birthday")
-                await ch.send(embed=embed)
+                try:
+                    await ch.send(embed=embed)
+                except:
+                    pass
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -270,7 +286,7 @@ class Core(commands.Cog):
                 if role:
                     ping_content = role.mention
             embed = discord.Embed(
-                title="<:disboard:1522643098599948389> Bump Reminder",
+                title="<a:disboard:1522643098599948389> Bump Reminder",
                 description="It's time to bump the server! Use `/bump` on DISBOARD.",
                 color=0xF0C040
             )
@@ -300,54 +316,6 @@ class Core(commands.Cog):
             {"$set": {"xp": xp, "level": level}},
             upsert=True
         )
-
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
-        data = await get_server_data(member.guild.id)
-        if not data.get("welcome_enabled"):
-            return
-        cid = data.get("welcome_channel")
-        ch  = self.bot.get_channel(cid) if cid else member.guild.system_channel
-        if not ch:
-            return
-        embed = discord.Embed(color=0x2B2D31)
-        embed.set_author(
-            name=f"Welcome to {member.guild.name}!",
-            icon_url=member.guild.icon.url if member.guild.icon else None
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.description = (
-            f"Hey {member.mention}, welcome to the server!\n"
-            f"You're member **#{member.guild.member_count}**."
-        )
-        embed.set_footer(text=f"Account created {member.created_at.strftime('%d %b %Y')}")
-        await ch.send(embed=embed)
-        await log_event(self.bot, member.guild, "member_join", f"{member} joined.")
-
-    @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
-        data = await get_server_data(member.guild.id)
-        if not data.get("bye_enabled"):
-            return
-        cid = data.get("bye_channel")
-        ch  = self.bot.get_channel(cid) if cid else None
-        if not ch:
-            return
-        embed = discord.Embed(color=0x2B2D31)
-        embed.set_author(
-            name=f"{member.display_name} left the server",
-            icon_url=member.display_avatar.url
-        )
-        embed.description = (
-            f"**{member.mention}** has left.\n"
-            f"Members remaining: **{member.guild.member_count}**"
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(
-            text=f"Joined {member.joined_at.strftime('%d %b %Y') if member.joined_at else 'Unknown'}"
-        )
-        await ch.send(embed=embed)
-        await log_event(self.bot, member.guild, "member_leave", f"{member} left.")
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):

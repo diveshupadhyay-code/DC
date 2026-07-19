@@ -1,440 +1,270 @@
 <h2 class="sr-only">Happy Bot — Dashboard and Documentation</h2>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {
-  --primary: #5865F2;
-  --primary-hover: #4752C4;
-  --bg-main: #0F172A;
-  --bg-card: #1E293B;
-  --bg-nav: #1E293B;
-  --text-main: #F1F5F9;
-  --text-muted: #94A3B8;
-  --border: #334155;
-  --radius: 12px;
-  --radius-sm: 8px;
-  
-  --badge-prem: #FEF08A;
-  --text-prem: #854D0E;
-  --badge-mod: #BFDBFE;
-  --text-mod: #1E40AF;
-  --badge-admin: #FCA5A5;
-  --text-admin: #991B1B;
-  --badge-owner: #E2E8F0;
-  --text-owner: #334155;
-  --badge-all: #BBF7D0;
-  --text-all: #166534;
+:root{
+  --void:#0b0b0b;
+  --panel:#131110;
+  --panel-alt:#17140f;
+  --blood:#8b0d1a;
+  --blood-bright:#b21326;
+  --paper:#f5f2ed;
+  --paper-dim:#a89e8f;
+  --line:rgba(245,242,237,.14);
+  --line-strong:rgba(245,242,237,.26);
+  --radius:2px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--void);
+  color:var(--paper);
+  font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:14px;
+  line-height:1.6;
+  padding:clamp(1rem,3vw,2.5rem);
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+a{color:inherit}
+::selection{background:var(--blood);color:var(--paper)}
+
+.masthead{
+  display:flex;flex-wrap:wrap;gap:1rem;
+  justify-content:space-between;align-items:flex-end;
+  border-bottom:2px solid var(--blood);
+  padding-bottom:1.1rem;margin-bottom:1.4rem;
+}
+.masthead .title{
+  font-family:'Fraunces',Georgia,serif;
+  font-size:clamp(1.6rem,4vw,2.3rem);
+  font-weight:600;
+  letter-spacing:.01em;
+}
+.masthead .title small{
+  display:block;
+  font-family:inherit;
+  font-size:11px;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:var(--blood-bright);
+  margin-top:.3rem;
+}
+.masthead .meta{
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--paper-dim);
+  text-align:right;
+}
+.masthead .meta span{color:var(--paper)}
+
+.nav{
+  display:flex;flex-wrap:wrap;gap:6px;
+  margin-bottom:1.6rem;
+}
+.nav button{
+  font-family:inherit;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  padding:10px 14px;
+  border:1px solid var(--line-strong);
+  border-bottom:2px solid var(--line-strong);
+  background:var(--panel);
+  color:var(--paper-dim);
+  cursor:pointer;
+}
+.nav button .code{color:var(--blood-bright);margin-right:.5em}
+.nav button:hover{color:var(--paper);border-color:var(--paper-dim)}
+.nav button.active{
+  background:var(--blood);
+  color:var(--paper);
+  border-color:var(--blood);
+}
+.nav button.active .code{color:var(--paper)}
+
+.page{display:none}
+.page.active{display:block}
+
+.eyebrow{
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--blood-bright);
+  margin:2.2rem 0 .9rem;
+  display:flex;align-items:center;gap:.7em;
+}
+.eyebrow::after{content:'';flex:1;height:1px;background:var(--line)}
+
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:.5rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+.stat{
+  border:1px solid var(--line-strong);
+  padding:1rem;
+  position:relative;
+}
+.stat .num{
+  font-family:'Fraunces',Georgia,serif;
+  font-size:1.9rem;font-weight:600;color:var(--paper);
+}
+.stat .lbl{
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--paper-dim);margin-top:.35rem;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  padding:1.15rem 1.3rem;
+  position:relative;
+}
+.card::before,.card::after{
+  content:'';position:absolute;width:9px;height:9px;
+  border-top:2px solid var(--blood-bright);border-left:2px solid var(--blood-bright);
+  top:-1px;left:-1px;
+}
+.card::after{
+  top:auto;left:auto;bottom:-1px;right:-1px;
+  border-top:none;border-left:none;
+  border-bottom:2px solid var(--blood-bright);border-right:2px solid var(--blood-bright);
+}
+.card .tag{
+  font-size:10px;letter-spacing:.14em;color:var(--blood-bright);
+  margin-bottom:.5rem;display:block;
+}
+.card h3{
+  font-family:'Fraunces',Georgia,serif;
+  font-size:1.02rem;font-weight:600;
+  margin-bottom:.5rem;color:var(--paper);
+}
+.card p{color:var(--paper-dim);font-size:12.5px;line-height:1.65}
+
+.table-container{
+  width:100%;overflow-x:auto;
+  border:1px solid var(--line-strong);
+}
+.cmd-table{width:100%;border-collapse:collapse;font-size:12.5px;text-align:left;min-width:640px}
+.cmd-table th{
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--blood-bright);padding:11px 14px;
+  background:var(--panel-alt);border-bottom:1px solid var(--line-strong);
+}
+.cmd-table td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--paper)}
+.cmd-table tr:last-child td{border-bottom:none}
+.cmd-table td:first-child{color:var(--paper);font-weight:600}
+.cmd-table tr:hover td{background:rgba(245,242,237,.03)}
+
+.badge{
+  display:inline-block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 7px;border:1px solid currentColor;color:var(--paper-dim);
+  transform:rotate(-1deg);
+}
+.badge-mod{color:#d7b98a}
+.badge-admin{color:#e08a8a}
+.badge-owner{color:#f5f2ed}
+.badge-all{color:#9fd0a8}
+.badge-prem{color:var(--blood-bright);border-color:var(--blood-bright);margin-left:6px}
+
+.filter-row{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  border:1px solid var(--line-strong);padding:.9rem 1rem;margin-bottom:1.1rem;
+  background:var(--panel);
+}
+.filter-group{display:flex;align-items:center;gap:8px}
+.filter-row label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)}
+.filter-row select{
+  font-family:inherit;font-size:12.5px;padding:7px 10px;
+  border:1px solid var(--line-strong);background:var(--void);color:var(--paper);
+}
+.checkbox-group{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
+.checkbox-group input{width:14px;height:14px;accent-color:var(--blood)}
+
+.file-tree{font-size:12.5px;line-height:2.05;overflow-x:auto;white-space:pre}
+.file-tree .dir{color:var(--blood-bright);font-weight:600}
+.file-tree .desc{color:var(--paper-dim);font-size:11px;margin-left:10px}
+
+.step{
+  display:flex;gap:14px;margin-bottom:1rem;align-items:flex-start;
+  border:1px solid var(--line);padding:1rem 1.2rem;background:var(--panel);
+}
+.step-num{
+  flex-shrink:0;width:30px;height:30px;
+  border:1px solid var(--blood-bright);color:var(--blood-bright);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
+}
+.step-body strong{display:block;font-family:'Fraunces',Georgia,serif;font-size:1rem;margin-bottom:.35rem;color:var(--paper)}
+.step-body p{font-size:12.5px;color:var(--paper-dim);line-height:1.65}
+
+code{
+  font-family:inherit;font-size:12px;background:var(--panel-alt);
+  padding:1px 6px;color:var(--blood-bright);border:1px solid var(--line);
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg-main);
-  color: var(--text-main);
-  padding: 1.5rem;
-  line-height: 1.5;
+.env-container{border:1px solid var(--line-strong);margin-bottom:1.3rem}
+.env-row{
+  display:grid;grid-template-columns:1fr;gap:3px;
+  padding:12px 16px;border-bottom:1px solid var(--line);font-size:12.5px;
 }
+@media(min-width:600px){.env-row{grid-template-columns:1fr 2fr;gap:16px}}
+.env-row:last-child{border-bottom:none}
+.env-key{color:var(--blood-bright);font-weight:600}
+.env-val{color:var(--paper-dim)}
 
-.nav {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.nav button {
-  font-size: 14px;
-  font-weight: 500;
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-nav);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-
-.nav button:hover {
-  color: var(--text-main);
-  border-color: var(--primary);
-  background: rgba(88, 101, 242, 0.1);
-}
-
-.nav button.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.2);
-}
-
-.page {
-  display: none;
-  padding: 1.5rem 0;
-  animation: fadeIn 0.3s ease;
-}
-
-.page.active {
-  display: block;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.grid3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 2rem;
-}
-
-.grid2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
-  margin-bottom: 2rem;
-}
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.card h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card p {
-  font-size: 14px;
-  color: var(--text-muted);
-  line-height: 1.6;
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.stat-card .label {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stat-card .value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  margin: 2rem 0 1rem;
-}
-
-.table-container {
-  width: 100%;
-  overflow-x: auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.cmd-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  text-align: left;
-}
-
-.cmd-table th {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid var(--border);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.cmd-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-main);
-  vertical-align: middle;
-}
-
-.cmd-table tr:last-child td {
-  border-bottom: none;
-}
-
-.cmd-table td:first-child {
-  font-family: monospace;
-  font-size: 13px;
-  color: #38BDF8;
-  font-weight: 600;
-}
-
-.cmd-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.badge-prem { background: var(--badge-prem); color: var(--text-prem); }
-.badge-mod { background: var(--badge-mod); color: var(--text-mod); }
-.badge-admin { background: var(--badge-admin); color: var(--text-admin); }
-.badge-owner { background: var(--badge-owner); color: var(--text-owner); }
-.badge-all { background: var(--badge-all); color: var(--text-all); }
-
-.filter-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-  background: var(--bg-card);
-  padding: 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.filter-row label {
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-.filter-row select {
-  font-size: 14px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-main);
-  color: var(--text-main);
-  outline: none;
-  cursor: pointer;
-}
-
-.filter-row select:focus {
-  border-color: var(--primary);
-}
-
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text-main);
-}
-
-.checkbox-group input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary);
-  cursor: pointer;
-}
-
-.file-tree {
-  font-family: monospace;
-  font-size: 14px;
-  line-height: 2.2;
-  color: var(--text-main);
-  overflow-x: auto;
-  white-space: pre;
-}
-
-.file-tree .dir {
-  color: #38BDF8;
-  font-weight: 600;
-}
-
-.file-tree .desc {
-  color: var(--text-muted);
-  font-size: 12px;
-  margin-left: 12px;
-}
-
-.step {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 1.5rem;
-  align-items: flex-start;
-  background: var(--bg-card);
-  padding: 1.25rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-
-.step-num {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.step-body {
-  flex: 1;
-}
-
-.step-body strong {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: var(--text-main);
-}
-
-.step-body p {
-  font-size: 14px;
-  color: var(--text-muted);
-  line-height: 1.6;
-}
-
-code {
-  font-family: monospace;
-  font-size: 13px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #F43F5E;
-}
-
-.env-container {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.5rem 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.env-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-}
-
-@media(min-width: 600px) {
-  .env-row {
-    grid-template-columns: 1fr 2fr;
-    gap: 16px;
-  }
-}
-
-.env-row:last-child {
-  border-bottom: none;
-}
-
-.env-key {
-  font-family: monospace;
-  font-size: 13px;
-  color: #38BDF8;
-  font-weight: 600;
-}
-
-.env-val {
-  color: var(--text-muted);
-}
+.footnote{font-size:11px;color:var(--paper-dim);margin-top:2rem;border-top:1px solid var(--line);padding-top:1rem}
 </style>
 
+<div class="masthead">
+  <div class="title">HAPPY<small>Discord bot — field manual &amp; command register</small></div>
+  <div class="meta">STATUS <span>OPERATIONAL</span><br>HOST <span>RENDER · FREE TIER</span></div>
+</div>
+
 <div class="nav">
-  <button class="active" onclick="show('overview',this)"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> Overview</button>
-  <button onclick="show('commands',this)"><i class="ti ti-terminal" aria-hidden="true"></i> Commands</button>
-  <button onclick="show('structure',this)"><i class="ti ti-folder" aria-hidden="true"></i> File structure</button>
-  <button onclick="show('setup',this)"><i class="ti ti-settings" aria-hidden="true"></i> Setup guide</button>
-  <button onclick="show('premium',this)"><i class="ti ti-star" aria-hidden="true"></i> Premium</button>
-  <button onclick="show('cogs',this)"><i class="ti ti-puzzle" aria-hidden="true"></i> Cog guide</button>
+  <button class="active" onclick="show('overview',this)"><span class="code">01</span>Overview</button>
+  <button onclick="show('commands',this)"><span class="code">02</span>Commands</button>
+  <button onclick="show('structure',this)"><span class="code">03</span>File structure</button>
+  <button onclick="show('setup',this)"><span class="code">04</span>Setup guide</button>
+  <button onclick="show('premium',this)"><span class="code">05</span>Premium</button>
+  <button onclick="show('cogs',this)"><span class="code">06</span>Cog guide</button>
 </div>
 
 <div id="overview" class="page active">
   <div class="grid3">
-    <div class="stat-card"><div class="label">Total cogs</div><div class="value">13</div></div>
-    <div class="stat-card"><div class="label">Prefix commands</div><div class="value">80+</div></div>
-    <div class="stat-card"><div class="label">Slash commands</div><div class="value">18</div></div>
-    <div class="stat-card"><div class="label">DB collections</div><div class="value">20</div></div>
-    <div class="stat-card"><div class="label">Premium features</div><div class="value">8</div></div>
-    <div class="stat-card"><div class="label">Default prefix</div><div class="value">,</div></div>
+    <div class="stat"><div class="num">21</div><div class="lbl">Cogs loaded</div></div>
+    <div class="stat"><div class="num">190+</div><div class="lbl">Prefix commands</div></div>
+    <div class="stat"><div class="num">30+</div><div class="lbl">Slash commands</div></div>
+    <div class="stat"><div class="num">40+</div><div class="lbl">DB collections</div></div>
+    <div class="stat"><div class="num">9</div><div class="lbl">Premium features</div></div>
+    <div class="stat"><div class="num">,</div><div class="lbl">Default prefix</div></div>
   </div>
 
-  <div class="section-title">Cog modules</div>
+  <div class="eyebrow">Cog roster</div>
   <div class="grid2">
-    <div class="card"><h3><i class="ti ti-bolt" aria-hidden="true"></i> core.py</h3><p>on_ready, rotating status, global on_message dispatcher. Handles AFK, sticky, XP, welcome/bye events, message logs.</p></div>
-    <div class="card"><h3><i class="ti ti-shield" aria-hidden="true"></i> moderation.py</h3><p>Kick, ban, mute, warn, softban, lock/unlock, purge, massrole, jail, setupmute. All mod commands with hierarchy checks.</p></div>
-    <div class="card"><h3><i class="ti ti-confetti" aria-hidden="true"></i> fun.py</h3><p>Ship, hot, 8ball, coinflip, dice, would-you-rather, roast, praise. 11 roleplay actions with varied response pools.</p></div>
-    <div class="card"><h3><i class="ti ti-tool" aria-hidden="true"></i> utility.py</h3><p>Userinfo, avatar, serverinfo, ping, translate, urban, profile, birthday, level, leaderboard, embed builder, mimic, echo.</p></div>
-    <div class="card"><h3><i class="ti ti-brain" aria-hidden="true"></i> ai_chat.py</h3><p>Groq LLaMA AI chat (Premium only). Session tracking, context memory, typing simulation. Blocks @everyone/@here.</p></div>
-    <div class="card"><h3><i class="ti ti-award" aria-hidden="true"></i> roles.py</h3><p>Reaction roles, button roles (Premium), booster reward roles. Persistent across bot restarts.</p></div>
-    <div class="card"><h3><i class="ti ti-door-enter" aria-hidden="true"></i> welcome.py</h3><p>Welcome/bye messages (opt-in), logging config, automod anti-invite, live counters (members/bots/channels).</p></div>
-    <div class="card"><h3><i class="ti ti-ticket" aria-hidden="true"></i> tickets.py</h3><p>Multi-purpose ticket system. Types: Help, Report, Staff, Event. Persistent buttons. Staff role access.</p></div>
-    <div class="card"><h3><i class="ti ti-trending-up" aria-hidden="true"></i> leveling.py</h3><p>XP per message, level-up notifications, leaderboard, setlevel, resetxp admin commands.</p></div>
-    <div class="card"><h3><i class="ti ti-crown" aria-hidden="true"></i> premium.py</h3><p>Premium management, global call, VoiceMaster temp VCs, bump reminder, custom status, quicksetup wizard.</p></div>
-    <div class="card"><h3><i class="ti ti-settings" aria-hidden="true"></i> admin.py</h3><p>Settings dashboard, prefix management, announce, giveaway, premiumrole, maintenance/aimode toggles.</p></div>
-    <div class="card"><h3><i class="ti ti-help" aria-hidden="true"></i> help.py</h3><p>Permission-aware help — shows only commands the user can use. Category filtering: fun, mod, admin, premium, etc.</p></div>
+    <div class="card"><span class="tag">F-01 · core.py</span><h3>Core</h3><p>Startup sync, rotating status loop, birthday loop, and the shared on_message router — AFK, sticky, invite block, XP, AI handoff, call relay all pass through here.</p></div>
+    <div class="card"><span class="tag">F-02 · moderation.py</span><h3>Moderation</h3><p>Kick, ban, tempban, mute, warn, jail, lock/lockdown, purge, massrole, case history, and the flood-based anti-spam check.</p></div>
+    <div class="card"><span class="tag">F-03 · utility.py</span><h3>Utility</h3><p>Ping, userinfo, serverinfo, AFK, translate, urban lookup, profile cards, birthdays, sticky messages, the embed builder, mimic and echo.</p></div>
+    <div class="card"><span class="tag">F-04 · fun.py</span><h3>Fun</h3><p>Ship, hot, 8-ball, dice, would-you-rather, roast, praise, and eleven roleplay actions from hug to bonk.</p></div>
+    <div class="card"><span class="tag">F-05 · leveling.py</span><h3>Leveling</h3><p>Progress bar, leaderboard, resetxp and setlevel for admins. XP itself is awarded from core.py to keep the message router in one place.</p></div>
+    <div class="card"><span class="tag">F-06 · tickets.py</span><h3>Tickets</h3><p>Department picker, persistent create/close buttons, staff role access, and a per-guild ticket counter for channel naming.</p></div>
+    <div class="card"><span class="tag">F-07 · roles.py</span><h3>Roles</h3><p>Reaction roles, persistent button roles, and a reward role granted automatically on server boost.</p></div>
+    <div class="card"><span class="tag">F-08 · welcome.py</span><h3>Welcome</h3><p>Welcome and goodbye cards with variables and GIFs, mod logs, anti-invite filtering, and live member/bot/channel VC counters.</p></div>
+    <div class="card"><span class="tag">F-09 · ai_chat.py</span><h3>AI Chat</h3><p>Groq Llama 3.3 chat gated to Premium — per-user memory, a rolling session window, and a global kill switch for the owner.</p></div>
+    <div class="card"><span class="tag">F-10 · premium.py</span><h3>Premium</h3><p>Status ledger, cross-server call relay, VoiceMaster temp channels, bump reminders, custom status text, and the quicksetup wizard.</p></div>
+    <div class="card"><span class="tag">F-11 · admin.py</span><h3>Admin</h3><p>Settings dashboard, prefix management, announcements, giveaways with entry requirements, and per-guild command disabling.</p></div>
+    <div class="card"><span class="tag">F-12 · help.py</span><h3>Help</h3><p>Permission-aware paginated help with search and category jump — locked commands stay visible with the reason they're locked.</p></div>
+    <div class="card"><span class="tag">F-13 · aesthetic.py</span><h3>Aesthetic</h3><p>DM welcome cards, member-count milestones, color roles, embed-only and auto-pin channels, and one-click server polish.</p></div>
+    <div class="card"><span class="tag">F-14 · games.py</span><h3>Games</h3><p>Number guessing, a counting channel with a tracked high score, and a hangman-style word guess.</p></div>
+    <div class="card"><span class="tag">F-15 · economy.py</span><h3>Economy</h3><p>Wallet and bank balance, daily and work payouts, coinflip and slots, robbing, peer trades, and four investment tracks.</p></div>
+    <div class="card"><span class="tag">F-16 · levelroles.py</span><h3>Level Roles</h3><p>Auto-assigns Lvl 1–100 roles with cumulative channel permissions, plus manual VIP grants layered on top.</p></div>
+    <div class="card"><span class="tag">F-17 · tracker.py</span><h3>Tracker</h3><p>Invite attribution by diffing invite counts on join, an invite leaderboard, and a per-server message counter.</p></div>
+    <div class="card"><span class="tag">F-18 · extraperm.py</span><h3>Extra Perms</h3><p>Ten opt-in permission roles — Gif, React, Media, Speak and more — that staff hand out individually.</p></div>
+    <div class="card"><span class="tag">F-19 · aliases.py</span><h3>Aliases</h3><p>Per-server custom command aliases, resolved before the normal prefix parser runs.</p></div>
+    <div class="card"><span class="tag">F-20 · antinuke.py</span><h3>Anti-Nuke</h3><p>Audit-log burst detection on channel, role, ban, kick and webhook actions, with automatic role strip, kick or ban.</p></div>
+    <div class="card"><span class="tag">F-21 · emotes.py</span><h3>Emotes</h3><p>Cross-server emoji steal, a search-and-pick dropdown across every guild Happy is in, and a slot usage dashboard.</p></div>
   </div>
 </div>
 
 <div id="commands" class="page">
   <div class="filter-row">
     <div class="filter-group">
-      <label for="perm-filter">Permission:</label>
+      <label for="perm-filter">Permission</label>
       <select id="perm-filter" onchange="filterCmds()">
         <option value="all">All</option>
         <option value="everyone">Everyone</option>
@@ -444,7 +274,7 @@ code {
       </select>
     </div>
     <div class="filter-group">
-      <label for="cat-filter">Category:</label>
+      <label for="cat-filter">Category</label>
       <select id="cat-filter" onchange="filterCmds()">
         <option value="all">All categories</option>
         <option value="fun">Fun</option>
@@ -456,6 +286,13 @@ code {
         <option value="levels">Levels</option>
         <option value="admin">Admin</option>
         <option value="premium">Premium</option>
+        <option value="games">Games</option>
+        <option value="economy">Economy</option>
+        <option value="extraperm">Extra Perms</option>
+        <option value="levelroles">Level Roles</option>
+        <option value="tracker">Tracker</option>
+        <option value="emojis">Emojis</option>
+        <option value="system">System</option>
       </select>
     </div>
     <label class="checkbox-group">
@@ -471,99 +308,112 @@ code {
 </div>
 
 <div id="structure" class="page">
-  <div class="section-title">Project layout</div>
-  <div class="card" style="margin-bottom:1.5rem; overflow-x: auto;">
+  <div class="eyebrow">Project layout</div>
+  <div class="card" style="margin-bottom:1.4rem;overflow-x:auto">
     <div class="file-tree">
 <span class="dir">happybot/</span>
-  ├── <span class="dir">cogs/</span><span class="desc">— one file per feature area</span>
+  ├── <span class="dir">cogs/</span><span class="desc">— one file per feature area, 21 total</span>
   │   ├── core.py<span class="desc"> — startup, on_message, events</span>
   │   ├── moderation.py<span class="desc"> — kick, ban, lock, purge, jail</span>
-  │   ├── fun.py<span class="desc"> — ship, roleplay, 8ball, dice</span>
   │   ├── utility.py<span class="desc"> — userinfo, translate, profile</span>
-  │   ├── ai_chat.py<span class="desc"> — Groq AI chat (premium)</span>
+  │   ├── fun.py<span class="desc"> — ship, roleplay, 8ball, dice</span>
+  │   ├── leveling.py<span class="desc"> — XP, levels, leaderboard</span>
+  │   ├── tickets.py<span class="desc"> — ticket system</span>
   │   ├── roles.py<span class="desc"> — reaction/button/booster roles</span>
   │   ├── welcome.py<span class="desc"> — welcome, bye, logs, automod</span>
-  │   ├── tickets.py<span class="desc"> — ticket system</span>
-  │   ├── leveling.py<span class="desc"> — XP, levels, leaderboard</span>
+  │   ├── ai_chat.py<span class="desc"> — Groq AI chat (premium)</span>
   │   ├── premium.py<span class="desc"> — call, VoiceMaster, bump</span>
   │   ├── admin.py<span class="desc"> — settings, prefix, announce</span>
-  │   └── help.py<span class="desc"> — permission-aware help</span>
+  │   ├── help.py<span class="desc"> — permission-aware help</span>
+  │   ├── aesthetic.py<span class="desc"> — welcome cards, milestones, color roles</span>
+  │   ├── games.py<span class="desc"> — numguess, counting, wordguess</span>
+  │   ├── economy.py<span class="desc"> — wallet, work, trades, investing</span>
+  │   ├── levelroles.py<span class="desc"> — Lvl 1-100 roles + perms</span>
+  │   ├── tracker.py<span class="desc"> — invite + message tracking</span>
+  │   ├── extraperm.py<span class="desc"> — ten opt-in perm roles</span>
+  │   ├── aliases.py<span class="desc"> — per-server command aliases</span>
+  │   ├── antinuke.py<span class="desc"> — audit-log burst protection</span>
+  │   └── emotes.py<span class="desc"> — cross-server emoji tools</span>
   ├── <span class="dir">utils/</span><span class="desc">— shared helpers</span>
-  │   ├── db.py<span class="desc"> — all MongoDB collections</span>
+  │   ├── db.py<span class="desc"> — MongoDB collections</span>
   │   └── helpers.py<span class="desc"> — prefix, checks, log_event</span>
-  ├── main.py<span class="desc"> — entry point, cog loader, Flask</span>
+  ├── <span class="dir">templates/</span>
+  │   └── happy_bot_dashboard.html
+  ├── main.py<span class="desc"> — entry point, cog loader, Flask keep-alive</span>
   ├── requirements.txt
-  └── .env.example</div>
+  └── .env</div>
   </div>
 
-  <div class="section-title">MongoDB collections (20 total)</div>
+  <div class="eyebrow">MongoDB collections, 40+</div>
   <div class="grid2">
-    <div class="card"><h3>Core</h3><p><code>server_settings</code> prefix, channels, flags<br><code>premium</code> server/user premium entries<br><code>personal_prefix</code> per-user prefix</p></div>
-    <div class="card"><h3>Moderation</h3><p><code>warnings</code> warn counts<br><code>jail</code> saved roles for unjail<br><code>disabled_commands</code> per-server toggles</p></div>
-    <div class="card"><h3>Content</h3><p><code>sticky_messages</code> channel stickies<br><code>afk_users</code> AFK status + time<br><code>embed_drafts</code> in-progress embeds</p></div>
-    <div class="card"><h3>Roles</h3><p><code>reaction_roles</code> emoji→role maps<br><code>button_roles</code> button panel data<br><code>booster_roles</code> boost reward role</p></div>
-    <div class="card"><h3>Engagement</h3><p><code>levels</code> XP + level per user/guild<br><code>birthdays</code> day/month per user<br><code>user_profiles</code> bio + location</p></div>
-    <div class="card"><h3>Server features</h3><p><code>tickets</code> active + config<br><code>logging_config</code> log channel<br><code>bump_reminder</code> DISBOARD config<br><code>voicemaster</code> temp VC state<br><code>server_status</code> custom bot status<br><code>counters</code> live VC counters</p></div>
+    <div class="card"><h3>Core</h3><p><code>server_settings</code> prefix, channels, flags<br><code>premium</code> server/user entries<br><code>personal_prefix</code> per-user prefix<br><code>disabled_commands</code> per-server toggles</p></div>
+    <div class="card"><h3>Moderation</h3><p><code>warnings</code> warn counts<br><code>mod_cases</code> full case history<br><code>mod_notes</code> staff notes<br><code>jail</code> saved roles for unjail<br><code>antispam_config</code> flood thresholds</p></div>
+    <div class="card"><h3>Engagement</h3><p><code>levels</code> XP + level<br><code>birthdays</code> day/month<br><code>user_profiles</code> bio + location<br><code>milestones</code> announced member counts</p></div>
+    <div class="card"><h3>Economy</h3><p><code>economy_global</code> wallet + bank<br><code>trades</code> peer trade offers<br><code>investments</code> active positions<br><code>server_activity</code> hourly message rate</p></div>
+    <div class="card"><h3>Roles &amp; access</h3><p><code>reaction_roles</code>, <code>button_roles</code>, <code>booster_roles</code><br><code>color_roles</code>, <code>lr_config</code>, <code>lr_extra</code><br><code>extraperm_config</code>, <code>antinuke_config</code></p></div>
+    <div class="card"><h3>Tracking &amp; content</h3><p><code>invite_tracker</code>, <code>invite_log_config</code>, <code>message_counts</code><br><code>sticky_messages</code>, <code>afk_users</code>, <code>embed_drafts</code><br><code>command_aliases</code>, <code>giveaways</code>, <code>tickets</code></p></div>
   </div>
 </div>
 
 <div id="setup" class="page">
-  <div class="section-title">Initial setup</div>
-  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Clone and install</strong><p>Upload files to your server or Render. Run <code>pip install -r requirements.txt</code></p></div></div>
-  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Set environment variables</strong><p>Copy <code>.env.example</code> → <code>.env</code>. Fill in the three required keys below.</p></div></div>
+  <div class="eyebrow">Initial setup</div>
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Install dependencies</strong><p>Upload the files to your host. Run <code>pip install -r requirements.txt</code>.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Set environment variables</strong><p>Create a <code>.env</code> file next to <code>main.py</code> and fill in the four keys listed below.</p></div></div>
 
   <div class="env-container">
-    <div class="env-row"><span class="env-key">DISCORD_TOKEN</span><span class="env-val">Your bot token from Discord Developer Portal</span></div>
-    <div class="env-row"><span class="env-key">GROQ_API_KEY</span><span class="env-val">Free API key from console.groq.com</span></div>
-    <div class="env-row"><span class="env-key">MONGO_URL</span><span class="env-val">MongoDB Atlas connection string (free 500 MB tier)</span></div>
-    <div class="env-row"><span class="env-key">PORT</span><span class="env-val">10000 (default, Render uses this for keep-alive)</span></div>
+    <div class="env-row"><span class="env-key">DISCORD_TOKEN</span><span class="env-val">Bot token from the Discord Developer Portal</span></div>
+    <div class="env-row"><span class="env-key">GROQ_API_KEY</span><span class="env-val">Free API key from console.groq.com, used by ai_chat.py</span></div>
+    <div class="env-row"><span class="env-key">MONGO_URL</span><span class="env-val">MongoDB Atlas connection string, free 500 MB tier is enough</span></div>
+    <div class="env-row"><span class="env-key">PORT</span><span class="env-val">10000 by default — Render sets this automatically</span></div>
   </div>
 
-  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Render config</strong><p>Build command: <code>pip install -r requirements.txt</code><br>Start command: <code>python main.py</code></p></div></div>
-  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Set your owner ID</strong><p>Open <code>utils/helpers.py</code> and update <code>BOT_OWNER_ID = 876629015144828939</code> to your Discord user ID.</p></div></div>
-  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>First-run server setup</strong><p>Run <code>,quicksetup</code> in your server. Then: <code>,welcome set #channel</code> → <code>,welcome enable</code> → <code>,logs set #mod-logs</code> → <code>,ticket setup</code></p></div></div>
-  <div class="step"><div class="step-num">6</div><div class="step-body"><strong>Activate premium</strong><p>As the owner: <code>,premium add server YOUR_SERVER_ID</code> to enable AI chat and all premium features for a server.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Render config</strong><p>Build command: <code>pip install -r requirements.txt</code>. Start command: <code>python main.py</code>.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Keep the free tier awake</strong><p>Render's free web services sleep after 15 minutes without traffic. <code>main.py</code> runs a Flask server on a background thread for exactly this reason — point an external monitor such as UptimeRobot or cron-job.org at the root URL every 10 minutes so the process never spins down between commands.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Set your owner ID</strong><p>Open <code>utils/helpers.py</code> and replace <code>BOT_OWNER_ID</code> with your own Discord user ID. This unlocks every owner-only command.</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><strong>First-run server setup</strong><p>Run <code>,quicksetup</code>, then <code>,welcome set #channel</code> → <code>,welcome enable</code> → <code>,logs set #mod-logs</code> → <code>,ticket setup</code>.</p></div></div>
+  <div class="step"><div class="step-num">7</div><div class="step-body"><strong>Turn on premium</strong><p>As the owner, run <code>,premium add server YOUR_SERVER_ID</code> to unlock AI chat, VoiceMaster, level roles and every other gated feature for that server.</p></div></div>
 </div>
 
 <div id="premium" class="page">
-  <div class="section-title">What's premium</div>
+  <div class="eyebrow">What premium unlocks</div>
   <div class="grid2">
-    <div class="card"><h3><i class="ti ti-brain" aria-hidden="true"></i> AI chat</h3><p>@mention Happy or reply. Powered by LLaMA 3.3 via Groq. Per-user conversation memory. Hinglish responses. Blocks @everyone/@here.</p></div>
-    <div class="card"><h3><i class="ti ti-phone" aria-hidden="true"></i> Global call</h3><p>Connect two servers' channels together in real-time. Messages relay across servers. Use <code>,call</code> to queue, <code>,hangup</code> to end.</p></div>
-    <div class="card"><h3><i class="ti ti-microphone" aria-hidden="true"></i> VoiceMaster</h3><p>Members join a trigger VC → private VC auto-created. Deleted when empty. Setup: <code>,vcsetup</code>.</p></div>
-    <div class="card"><h3><i class="ti ti-mouse" aria-hidden="true"></i> Button roles</h3><p>Interactive role buttons. Click to toggle a role. Persistent across restarts. Setup: <code>,buttonrole @role Label | @role2 Label</code>.</p></div>
-    <div class="card"><h3><i class="ti ti-bell" aria-hidden="true"></i> Bump reminder</h3><p>Auto-reminds 2h after every DISBOARD bump. Setup: <code>,bumpreminder on</code> in the reminder channel.</p></div>
-    <div class="card"><h3><i class="ti ti-activity" aria-hidden="true"></i> Custom status</h3><p>Add your server's text to the bot's rotating status pool. Setup: <code>,setstatus Your text here</code>.</p></div>
-    <div class="card"><h3><i class="ti ti-keyboard" aria-hidden="true"></i> Personal prefix</h3><p>Works across ALL servers with Happy. Setup: <code>,prefix self !</code>. Remove: <code>,prefix selfremove</code>.</p></div>
-    <div class="card"><h3><i class="ti ti-user-check" aria-hidden="true"></i> Who gets premium</h3><p>Activated per-server or per-user by the bot owner. <code>,premium add server ID</code> or <code>,premium add user ID</code>.</p></div>
+    <div class="card"><h3>AI chat</h3><p>@mention Happy or reply to it. Llama 3.3 via Groq, per-user memory, Hinglish replies, blocks @everyone and @here.</p></div>
+    <div class="card"><h3>Global call</h3><p>Connect two servers' channels in real time. <code>,call</code> to queue or connect instantly, <code>,hangup</code> to end.</p></div>
+    <div class="card"><h3>VoiceMaster</h3><p>Join a trigger channel and get a private voice channel, auto-deleted when it empties. Setup with <code>,vcsetup create</code>.</p></div>
+    <div class="card"><h3>Button roles</h3><p>Click-to-toggle role panels that survive a bot restart. Setup with <code>,buttonrole @role Label | @role2 Label</code>.</p></div>
+    <div class="card"><h3>Bump reminder</h3><p>Pings two hours after every DISBOARD bump, with an optional role ping. Setup with <code>,bumpreminder on</code>.</p></div>
+    <div class="card"><h3>Custom status</h3><p>Adds your server's text into the bot's rotating status pool. Setup with <code>,setstatus &lt;text&gt;</code>.</p></div>
+    <div class="card"><h3>Color roles &amp; polish</h3><p>Self-service accent colors, milestone announcements, embed-only and auto-pin channels. Setup with <code>,color setup</code> or <code>,serverpolish</code>.</p></div>
+    <div class="card"><h3>Level roles</h3><p>Auto-assigns Lvl 1–100 with cumulative channel permissions as members level up. Setup with <code>,levelroles setup</code>.</p></div>
+    <div class="card"><h3>Extra perm roles</h3><p>Ten hand-out roles — Gif, React, Media, Speak and more — for staff to grant one member at a time.</p></div>
   </div>
 
-  <div class="section-title">Owner commands</div>
+  <div class="eyebrow">Owner commands</div>
   <div class="table-container">
     <table class="cmd-table">
       <thead><tr><th>Command</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td>,premium add server &lt;id&gt;</td><td>Activate premium for an entire server</td></tr>
-        <tr><td>,premium add user &lt;id&gt;</td><td>Activate premium for a specific user</td></tr>
+        <tr><td>,premium add server/user &lt;id&gt;</td><td>Activate premium for a server or a specific user</td></tr>
         <tr><td>,premium remove server/user &lt;id&gt;</td><td>Remove premium access</td></tr>
-        <tr><td>,premium list</td><td>List all active premium entries</td></tr>
-        <tr><td>,aimode on/off</td><td>Toggle AI chat globally across all servers</td></tr>
-        <tr><td>,maintenance on/off</td><td>Block all AI responses while you work on the bot</td></tr>
+        <tr><td>,premium info &lt;guild_id&gt;</td><td>See premium status plus VoiceMaster, bump and status setup for a server</td></tr>
+        <tr><td>,aimode on/off</td><td>Toggle AI chat globally, across every server</td></tr>
+        <tr><td>,aiblock &lt;guild_id&gt;</td><td>Turn off AI chat for one specific server</td></tr>
+        <tr><td>,maintenance on/off</td><td>Flag maintenance mode while you work on the bot</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
 <div id="cogs" class="page">
-  <div class="section-title">How to add a new cog</div>
+  <div class="eyebrow">Adding a new cog</div>
   <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Create the file</strong><p>Add <code>cogs/mycog.py</code>. Use the template below as a starting point.</p></div></div>
-  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Register in main.py</strong><p>Add <code>"cogs.mycog"</code> to the <code>COGS</code> list in <code>main.py</code>. The loader handles the rest.</p></div></div>
-  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Restart or hot-reload</strong><p>Redeploy on Render, or run <code>,reload mycog</code> if you add a reload command to the owner cog.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Register it in main.py</strong><p>Add <code>"cogs.mycog"</code> to the <code>COGS</code> list. The loader logs <code>[OK]</code> or <code>[FAIL]</code> for each cog on startup.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Redeploy</strong><p>Push to your host, or add a reload command to the admin cog for hot-reloading during development.</p></div></div>
 
-  <div class="section-title">Cog template</div>
-  <div class="card" style="overflow-x: auto;">
-    <div class="file-tree" style="font-size:13px;line-height:1.8">
-"""cogs/mycog.py — Short description."""
+  <div class="eyebrow">Cog template</div>
+  <div class="card" style="overflow-x:auto">
+    <div class="file-tree" style="font-size:12px">
+"""cogs/mycog.py — short description."""
 import discord
 from discord.ext import commands
 from utils.helpers import ctx_mod, ctx_admin, ctx_owner
@@ -574,37 +424,44 @@ class MyCog(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    @ctx_mod() 
+    @ctx_mod()
     async def mycommand(self, ctx):
-        """Help text shown in ,help."""
         await ctx.reply("Hello!")
 
 async def setup(bot):
     await bot.add_cog(MyCog(bot))</div>
   </div>
 
-  <div class="section-title">Permission decorators (utils/helpers.py)</div>
+  <div class="eyebrow">Permission decorators, utils/helpers.py</div>
   <div class="table-container">
     <table class="cmd-table">
-      <thead><tr><th>Decorator</th><th>Who can use it</th><th>Usage</th></tr></thead>
+      <thead><tr><th>Decorator</th><th>Who can use it</th><th>Typical use</th></tr></thead>
       <tbody>
         <tr><td>@ctx_owner()</td><td>Bot owner ID only</td><td>Owner-only commands</td></tr>
         <tr><td>@ctx_admin()</td><td>Owner + server admins</td><td>Server config commands</td></tr>
         <tr><td>@ctx_mod()</td><td>Owner + admins + mods</td><td>Moderation commands</td></tr>
         <tr><td>@ctx_premium()</td><td>Owner + premium user/server</td><td>Premium features</td></tr>
-        <tr><td>@is_owner()</td><td>Owner only (slash)</td><td>Slash owner commands</td></tr>
-        <tr><td>@is_admin_or_owner()</td><td>Owner + admins (slash)</td><td>Slash admin commands</td></tr>
-        <tr><td>@is_mod_or_owner()</td><td>Owner + mods (slash)</td><td>Slash mod commands</td></tr>
-        <tr><td>@slash_premium_required()</td><td>Owner + premium (slash)</td><td>Slash premium commands</td></tr>
+        <tr><td>@is_owner()</td><td>Owner only, slash</td><td>Slash owner commands</td></tr>
+        <tr><td>@is_admin_or_owner()</td><td>Owner + admins, slash</td><td>Slash admin commands</td></tr>
+        <tr><td>@is_mod_or_owner()</td><td>Owner + mods, slash</td><td>Slash mod commands</td></tr>
+        <tr><td>@slash_premium_required()</td><td>Owner + premium, slash</td><td>Slash premium commands</td></tr>
       </tbody>
     </table>
   </div>
+
+  <div class="eyebrow">Per-server command control</div>
+  <div class="grid2">
+    <div class="card"><h3>Disable / enable</h3><p>Admins run <code>,disable &lt;command&gt;</code> or <code>,enable &lt;command&gt;</code> to toggle any single command per server. The <code>on_command</code> listener in admin.py checks the list before every invocation. Core commands like <code>settings</code>, <code>help</code> and <code>sync</code> are protected and can't be disabled.</p></div>
+    <div class="card"><h3>Command aliases</h3><p>Admins map a custom word to any existing command with <code>,alias add &lt;alias&gt; &lt;command&gt;</code>. aliases.py intercepts messages that don't match a real command, rewrites the alias to the real one, and re-invokes it — up to 50 aliases per server.</p></div>
+  </div>
+
+  <div class="footnote">Reference build. Command counts and descriptions reflect the cogs listed in main.py's COGS registry — update this page when you add, rename or retire a cog.</div>
 </div>
 
 <script>
 function show(id, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('active')});
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
 }
@@ -615,120 +472,152 @@ const ALL_CMDS = [
   [",avatar [@user]","View avatar in full size","everyone","utility",false],
   [",serverinfo","View server statistics","everyone","utility",false],
   [",membercount","Member/bot/human count","everyone","utility",false],
-  [",level [@user]","Check XP and level","everyone","levels",false],
-  [",leaderboard","Top 10 members by level","everyone","levels",false],
-  [",profile [@user]","View profile card","everyone","profile",false],
-  [",profile bio <text>","Set your bio","everyone","profile",false],
-  [",profile location <city>","Set your location","everyone","profile",false],
-  [",birthday [@user]","View a birthday","everyone","profile",false],
-  [",birthday set DD/MM","Set your birthday","everyone","profile",false],
-  [",afk [reason]","Set AFK status","everyone","utility",false],
-  [",ship @u1 @u2","Love compatibility","everyone","fun",false],
-  [",hot [@user]","Hotness meter","everyone","fun",false],
-  [",8ball <question>","Magic 8-ball","everyone","fun",false],
-  [",coinflip","Flip a coin","everyone","fun",false],
-  [",dice [sides]","Roll a dice","everyone","fun",false],
-  [",wouldyourather","Would you rather question","everyone","fun",false],
-  [",hug/pat/slap/kiss","Roleplay actions","everyone","fun",false],
-  [",boop/wave/stare","More roleplay actions","everyone","fun",false],
-  [",bonk/cuddle/highfive","More roleplay actions","everyone","fun",false],
-  [",roast [@user]","Gentle roast","everyone","fun",false],
-  [",praise [@user]","Send a compliment","everyone","fun",false],
   [",translate <lang> <text>","Translate text","everyone","utility",false],
   [",urban <word>","Urban Dictionary lookup","everyone","utility",false],
-  [",shrug [text]","Send a shrug","everyone","fun",false],
-  [",prefix","View prefix info","everyone","utility",false],
-  [",prefix self <symbol>","Personal prefix (all servers)","everyone","premium",true],
-  [",prefix selfremove","Remove personal prefix","everyone","utility",false],
-  [",kick @user [reason]","Kick a member","mod","mod",false],
-  [",ban @user [reason]","Ban a member","mod","mod",false],
-  [",unban <id>","Unban by user ID","mod","mod",false],
-  [",mute @user [minutes]","Timeout a member","mod","mod",false],
-  [",unmute @user","Remove timeout","mod","mod",false],
-  [",warn @user [reason]","Warn a member","mod","mod",false],
-  [",warnings [@user]","View warning count","mod","mod",false],
-  [",clearwarns @user","Clear all warnings","mod","mod",false],
-  [",softban @user","Ban + unban (clear msgs)","mod","mod",false],
-  [",nickname @user [name]","Change or reset nickname","mod","mod",false],
-  [",lock [#channel]","Lock a channel","mod","mod",false],
-  [",unlock [#channel]","Unlock a channel","mod","mod",false],
-  [",vclock [#vc]","Lock a voice channel","mod","mod",false],
-  [",vcunlock [#vc]","Unlock a voice channel","mod","mod",false],
-  [",purge <amount>","Delete messages","mod","mod",false],
-  [",purge bots <amount>","Delete bot messages","mod","mod",false],
-  [",purge @user <amount>","Delete user messages","mod","mod",false],
-  [",purge links","Delete link messages","mod","mod",false],
-  [",jail @user","Put member in jail","mod","mod",false],
-  [",unjail @user","Release from jail","mod","mod",false],
-  [",sticky <text>","Set sticky message","mod","utility",false],
+  [",afk [reason]","Set AFK status","everyone","utility",false],
+  [",sticky <text>","Pin a sticky message","mod","utility",false],
   [",unsticky","Remove sticky message","mod","utility",false],
-  [",announce <msg>","Send announcement","mod","admin",false],
-  [",giveaway <min> <w> <prize>","Start a giveaway","mod","admin",false],
-  [",mimic @user <msg>","Send as another member","mod","mod",false],
-  [",echo [#ch] <msg>","Send message as bot","mod","mod",false],
-  [",ticket close","Close ticket channel","mod","tickets",false],
-  [",ticket add/remove","Manage ticket members","mod","tickets",false],
-  [",hangup","End global call","mod","premium",false],
-  [",call","Connect to another server","mod","premium",true],
-  [",settings","Server config dashboard","admin","admin",false],
-  [",prefix set <symbol>","Set server prefix","admin","admin",false],
-  [",prefix remove","Reset server prefix","admin","admin",false],
-  [",welcome set/enable/disable","Configure welcome","admin","admin",false],
-  [",bye set/enable/disable","Configure bye messages","admin","admin",false],
-  [",logs set/disable","Configure log channel","admin","admin",false],
-  [",automod invite on/off","Toggle anti-invite","admin","admin",false],
-  [",role add/remove","Assign roles to members","admin","roles",false],
+  [",mimic @user <msg>","Send a message as another member","mod","utility",false],
+  [",echo [#ch] <msg>","Send a message as the bot","mod","utility",false],
+  [",embed create/send","Draft and send a custom embed","admin","utility",false],
+  [",level [@user]","Check XP and level","everyone","levels",false],
+  [",leaderboard","Top 10 members by level","everyone","levels",false],
+  [",setlevel @user <n>","Manually set a member's level","admin","levels",false],
+  [",resetxp [@user]","Reset XP for a member or the server","admin","levels",false],
+  [",togglelevels on/off","Toggle level-up alerts","admin","levels",false],
+  [",profile [@user]","View a profile card","everyone","profile",false],
+  [",profile bio/location/clear","Edit your profile","everyone","profile",false],
+  [",birthday [@user]","View a birthday","everyone","profile",false],
+  [",birthday set DD/MM","Set your birthday","everyone","profile",false],
+  [",birthday channel #ch","Set the birthday channel","admin","profile",false],
+  [",ship @u1 @u2","Love compatibility meter","everyone","fun",false],
+  [",hot [@user]","Hotness meter","everyone","fun",false],
+  [",8ball <question>","Magic 8-ball","everyone","fun",false],
+  [",dice [sides]","Roll a dice","everyone","fun",false],
+  [",wouldyourather","Would-you-rather with vote buttons","everyone","fun",false],
+  [",hug/pat/slap/kiss/poke","Roleplay actions","everyone","fun",false],
+  [",bonk/cuddle/boop/wave/stare","More roleplay actions","everyone","fun",false],
+  [",roast [@user]","Send a gentle roast","everyone","fun",false],
+  [",praise [@user]","Send a compliment","everyone","fun",false],
+  [",shrug [text]","Post a shrug","everyone","fun",false],
+  [",kick @user [reason]","Kick a member","mod","mod",false],
+  [",ban @user [reason]","Permanently ban a member","mod","mod",false],
+  [",tempban @user <dur> [reason]","Temporary ban that auto-unbans","mod","mod",false],
+  [",unban <id> [reason]","Unban a user by ID","mod","mod",false],
+  [",mute/unmute @user","Timeout a member or remove it","mod","mod",false],
+  [",warn/warnings/clearwarns","Warn tracking for a member","mod","mod",false],
+  [",softban @user","Ban + unban to clear recent messages","mod","mod",false],
+  [",nickname @user [name]","Change or reset a nickname","mod","mod",false],
+  [",note/cases/case","Mod notes and case history","mod","mod",false],
+  [",purge <amount / filter>","Bulk delete messages","mod","mod",false],
+  [",lock/unlock [#ch]","Lock or unlock a channel","mod","mod",false],
+  [",vclock/vcunlock [#vc]","Lock or unlock a voice channel","mod","mod",false],
+  [",lockdown / unlockdown","Lock or release every channel","admin","mod",false],
+  [",jail/unjail @user","Strip roles into a holding channel","mod","mod",false],
+  [",jailsetup","Create the jail role and channel","admin","mod",false],
+  [",setupmute","Create Muted / Image / Reaction roles","admin","mod",false],
   [",massrole add/remove","Bulk role assignment","admin","roles",false],
-  [",reactionrole add","Set up reaction role","admin","roles",false],
-  [",buttonrole","Button role panel","admin","roles",true],
-  [",boosterrole @role","Set booster reward role","admin","roles",false],
-  [",ticket setup","Send ticket panel","admin","tickets",false],
-  [",ticket staffrole @role","Set staff role","admin","tickets",false],
-  [",jailsetup","Create jail role + channel","admin","admin",false],
-  [",setupmute","Create muted roles","admin","admin",false],
-  [",quicksetup","Auto-create server layout","admin","admin",false],
-  [",embed create/send","Embed builder","admin","admin",false],
-  [",counter create","Live VC counter","admin","admin",false],
-  [",lockdown","Lock all channels","admin","mod",false],
-  [",unlockdown","Lift lockdown","admin","mod",false],
-  [",premiumrole @role","Set premium role","admin","admin",false],
-  [",setstatus <text>","Custom bot status","admin","premium",true],
-  [",bumpreminder on/off","Bump reminder","admin","premium",true],
-  [",vcsetup","VoiceMaster temp VCs","admin","premium",true],
-  [",setlevel @user <level>","Set member level","admin","levels",false],
-  [",resetxp [@user]","Reset XP","admin","levels",false],
-  [",premium add/remove/list","Manage premium","owner","admin",false],
-  [",aimode on/off","Toggle AI globally","owner","admin",false],
-  [",maintenance on/off","Maintenance mode","owner","admin",false],
+  [",antispam enable/disable/set","Flood detection config","admin","mod",false],
+  [",slowmode <sec> [#ch]","Set channel slowmode","mod","admin",false],
+  [",topic/rename","Edit a channel's topic or name","mod","admin",false],
+  [",role add/remove","Add or remove a role from a member","admin","roles",false],
+  [",reactionrole add","Set up an emoji reaction role","admin","roles",false],
+  [",buttonrole","Interactive button role panel","admin","roles",true],
+  [",boosterrole @role","Reward role for server boosters","admin","roles",false],
+  [",color / color pick / setup","Self-service accent colors","everyone","premium",true],
+  [",ticket setup","Send the ticket creation panel","admin","tickets",false],
+  [",ticket staffrole @role","Set who can see every ticket","admin","tickets",false],
+  [",ticket close/add/remove","Manage the current ticket","mod","tickets",false],
+  [",settings","Full server configuration dashboard","admin","admin",false],
+  [",prefix / prefix set/remove","View or change the server prefix","admin","admin",false],
+  [",prefix self/selfremove","Personal prefix across all servers","everyone","premium",true],
+  [",premiumrole @role","Role that grants premium AI access","admin","admin",false],
+  [",disable/enable <command>","Toggle a command for this server","admin","admin",false],
+  [",announce [#ch] <msg>","Send an announcement embed","mod","admin",false],
+  [",giveaway <dur> <n> <prize>","Start a giveaway, msg/invite gated","mod","admin",false],
+  [",giveaway end/reroll <id>","End early or reroll winners","mod","admin",false],
+  [",welcome set/enable/message","Configure welcome cards","admin","admin",false],
+  [",bye set/enable/message","Configure goodbye cards","admin","admin",false],
+  [",logs set/disable","Configure the mod log channel","admin","admin",false],
+  [",automod invite on/off","Block invite links server-wide","admin","admin",false],
+  [",counter create <type> #vc","Live member/bot/channel counter","admin","admin",false],
+  [",quicksetup","Auto-create channels, categories, roles","admin","admin",false],
+  [",mypremium","Check your premium status","everyone","premium",false],
+  [",call / hangup / callinfo","Cross-server live channel relay","admin","premium",true],
+  [",vcsetup create/limit/name","VoiceMaster temp voice channels","admin","premium",true],
+  [",bumpreminder on/off","DISBOARD bump reminder","admin","premium",true],
+  [",bumppingrole @role","Role pinged on bump reminder","admin","premium",true],
+  [",setstatus <text>","Add text to the bot's rotating status","admin","premium",true],
+  [",serverpolish","One-click aesthetic server setup","admin","premium",true],
+  [",aesthetic autorole/media/milestone","Aesthetic system configuration","admin","premium",true],
+  [",balance/daily/work","Wallet, bank and payout commands","everyone","economy",false],
+  [",deposit/withdraw/transfer","Move HC between wallet, bank and users","everyone","economy",false],
+  [",coinflip/slots/rob","Gambling and risk commands","everyone","economy",false],
+  [",trade offer/accept/decline","Peer-to-peer HC trading","everyone","economy",false],
+  [",invest in/check/collect","Four-tier investment system","everyone","economy",false],
+  [",richlist","Top 10 richest HC holders","everyone","economy",false],
+  [",givecash/takecash/resetcash","Direct balance control","owner","economy",false],
+  [",numguess start/stop","Number guessing game","everyone","games",false],
+  [",counting setup/reset/stats","Counting channel game","mod","games",false],
+  [",wordguess start/stop","Hangman-style word guess","everyone","games",false],
+  [",invites [@user]","How many people a user invited","everyone","tracker",false],
+  [",inviteleaderboard","Top 10 inviters","everyone","tracker",false],
+  [",inviteinfo <code>","Detailed info on one invite","everyone","tracker",false],
+  [",invitelog #ch / disable","Invite join/leave log channel","admin","tracker",false],
+  [",invitereset [@user]","Reset invite counts","admin","tracker",false],
+  [",messages/msgleaderboard/msgstats","Message count tracking","everyone","tracker",false],
+  [",msgreset [@user]","Reset message counts","admin","tracker",false],
+  [",levelroles setup/sync","Create and sync Lvl 1-100 roles","admin","levelroles",true],
+  [",levelroles managechannel #ch","Toggle a channel for perm management","admin","levelroles",true],
+  [",levelroles grant/revoke","Manual VIP role grants","admin","levelroles",true],
+  [",levelroles info <level>","Perks unlocked at a given level","everyone","levelroles",true],
+  [",levelroles teardown","Delete all 107 created roles","admin","levelroles",true],
+  [",extraperm setup","Create all ten perm roles","admin","extraperm",true],
+  [",extraperm give/take @user","Assign or remove a perm role","admin","extraperm",true],
+  [",extraperm list/info","See who has which perm role","everyone","extraperm",true],
+  [",extraperm teardown","Delete all created perm roles","admin","extraperm",true],
+  [",emoji steal <emojis>","Recreate emojis in this server","admin","emojis",false],
+  [",emoji search <name>","Search emojis across every server Happy is in","admin","emojis",false],
+  [",emoji addid/remove/rename","Direct emoji management","admin","emojis",false],
+  [",emoji list","Static/animated slot usage","everyone","emojis",false],
+  [",alias add/remove/list","Custom command aliases","admin","system",false],
+  [",antinuke enable/disable","Toggle burst-action protection","admin","system",false],
+  [",antinuke whitelist add/remove","Exempt a member from anti-nuke","admin","system",false],
+  [",antinuke punishment <mode>","Set strip/kick/ban response","admin","system",false],
+  [",antinuke logs #ch","Anti-nuke alert channel","admin","system",false],
+  [",botstatus set/set24h/reset","Owner status override","owner","system",false],
+  [",serverlist/leaveguild/dm","Owner server management tools","owner","system",false],
+  [",sync [guild_id]","Sync slash commands","owner","system",false],
+  [",premium add/remove/info","Manage premium access","owner","premium",false],
+  [",aimode on/off","Toggle AI chat globally","owner","admin",false],
+  [",aiblock <guild_id>","Block AI for one server","owner","admin",false],
+  [",maintenance on/off","Toggle maintenance mode","owner","admin",false],
 ];
 
 function permBadge(p){
   const map={everyone:['all','everyone'],mod:['mod','mod'],admin:['admin','admin'],owner:['owner','owner']};
-  const[cls,label]=map[p]||['all','all'];
-  return `<span class="badge badge-${cls}">${label}</span>`;
+  const pair=map[p]||['all','all'];
+  return '<span class="badge badge-'+pair[0]+'">'+pair[1]+'</span>';
 }
 
 function renderTable(rows){
   const tbody=document.getElementById('cmd-body');
-  tbody.innerHTML=rows.map(([cmd,desc,perm,cat,prem])=>
-    `<tr>
-      <td>${cmd}${prem?' <span class="badge badge-prem">Premium</span>':''}</td>
-      <td>${desc}</td>
-      <td>${permBadge(perm)}</td>
-      <td style="color:var(--color-text-muted);font-size:13px">${cat}</td>
-    </tr>`
-  ).join('');
+  tbody.innerHTML=rows.map(function(r){
+    const cmd=r[0],desc=r[1],perm=r[2],cat=r[3],prem=r[4];
+    return '<tr><td>'+cmd+(prem?' <span class="badge badge-prem">premium</span>':'')+'</td>'+
+      '<td>'+desc+'</td><td>'+permBadge(perm)+'</td>'+
+      '<td style="color:var(--paper-dim);font-size:11px">'+cat+'</td></tr>';
+  }).join('');
 }
 
 function filterCmds(){
   const perm=document.getElementById('perm-filter').value;
   const cat=document.getElementById('cat-filter').value;
   const premOnly=document.getElementById('prem-only').checked;
-  
-  const f=ALL_CMDS.filter(([cmd,desc,p,c,pr])=>{
-    if(perm!=='all'&&p!==perm)return false;
-    if(cat!=='all'&&c!==cat)return false;
-    if(premOnly&&!pr)return false;
+  const f=ALL_CMDS.filter(function(r){
+    if(perm!=='all'&&r[2]!==perm)return false;
+    if(cat!=='all'&&r[3]!==cat)return false;
+    if(premOnly&&!r[4])return false;
     return true;
   });
   renderTable(f);

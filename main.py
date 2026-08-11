@@ -4,7 +4,8 @@ from flask import Flask, render_template, redirect
 from threading import Thread
 import os, asyncio
 from dotenv import load_dotenv
-from utils.helpers import get_prefix
+from utils.helpers import get_prefix, BOT_OWNER_ID, BlacklistedError
+from utils.db import blacklist_col
 
 load_dotenv()
 
@@ -30,6 +31,16 @@ bot = commands.Bot(
 async def on_message(message):
     pass
 
+@bot.check
+async def globally_block_blacklisted(ctx):
+    if ctx.author.id == BOT_OWNER_ID:
+        return True
+    if await blacklist_col.find_one({"id": str(ctx.author.id)}):
+        raise BlacklistedError()
+    if ctx.guild and await blacklist_col.find_one({"id": str(ctx.guild.id)}):
+        raise BlacklistedError()
+    return True
+
 COGS = [
     "cogs.core",
     "cogs.moderation",
@@ -53,6 +64,7 @@ COGS = [
     "cogs.antinuke",
     "cogs.emotes",
     "cogs.hc_features",
+    "cogs.owner",
 
 ]
 

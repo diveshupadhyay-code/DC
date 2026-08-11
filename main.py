@@ -52,6 +52,7 @@ COGS = [
     "cogs.aliases",
     "cogs.antinuke",
     "cogs.emotes",
+    "cogs.hc_features",
 
 ]
 

@@ -85,9 +85,19 @@ def slash_premium_required():
         )
     return app_commands.check(predicate)
 
+class OwnerOnlyError(commands.CheckFailure):
+    pass
+
+
+class BlacklistedError(commands.CheckFailure):
+    pass
+
+
 def ctx_owner():
     async def predicate(ctx):
-        return ctx.author.id == BOT_OWNER_ID
+        if ctx.author.id == BOT_OWNER_ID:
+            return True
+        raise OwnerOnlyError()
     return commands.check(predicate)
 
 def ctx_mod():
@@ -151,3 +161,12 @@ async def update_server_data(server_id, key, value):
         {"$set": {key: value}},
         upsert=True
     )
+
+
+async def is_blacklisted(user_id: int, guild_id: int = None) -> bool:
+    from utils.db import blacklist_col
+    if await blacklist_col.find_one({"id": str(user_id)}):
+        return True
+    if guild_id and await blacklist_col.find_one({"id": str(guild_id)}):
+        return True
+    return False

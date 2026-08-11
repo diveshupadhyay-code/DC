@@ -10,6 +10,7 @@ from discord import app_commands
 import aiohttp, asyncio, re
 
 from utils.helpers import ctx_admin, BOT_OWNER_ID
+from cogs.hc_features import get_costs, try_charge
 
 EMOJI_PATTERN = re.compile(r"<(a?):([a-zA-Z0-9_]{2,32}):(\d{15,20})>")
 GOLD = 0xF0C040
@@ -198,17 +199,21 @@ class Emotes(commands.Cog):
                     failed.append(f"{name} (download failed)")
                     continue
 
+                costs = await get_costs()
+                if not await try_charge(ctx.author.id, costs["emoji_cost"]):
+                    failed.append(f"{name} (not enough HC — need {costs['emoji_cost']:,})")
+                    continue
+
                 try:
                     new_emoji = await ctx.guild.create_custom_emoji(
                         name=name[:32], image=img, reason=f"Emoji steal by {ctx.author}"
                     )
                     added.append(str(new_emoji))
-                    if is_animated:
-                        animated += 1
-                    else:
-                        static += 1
+                    ...
                 except discord.Forbidden:
                     failed.append(f"{name} (forbidden)")
+                    from cogs.economy import add_wallet
+                    await add_wallet(ctx.author.id, costs["emoji_cost"])  # refund
                 except discord.HTTPException as e:
                     failed.append(f"{name} ({e.text if hasattr(e, 'text') else 'error'})")
 

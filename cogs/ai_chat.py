@@ -7,6 +7,8 @@ from datetime import datetime
 from groq import Groq
 from utils.db import settings_col, premium_col
 from utils.helpers import BOT_OWNER_ID, is_premium_user, is_premium_server, ctx_owner, ctx_admin
+# from cogs.economy import get_account, add_wallet
+# from cogs.hc_features import get_costs
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 IST = pytz.timezone("Asia/Kolkata")
@@ -156,15 +158,24 @@ class AIChat(commands.Cog):
             role = message.guild.get_role(int(prem_role_id))
             has_prem_role = role in message.author.roles if role else False
 
-        can_use = is_owner or user_prem or srv_prem or has_prem_role
+        from cogs.economy import get_account, add_wallet
+        from cogs.hc_features import get_costs
 
-        if not can_use:
-            if is_mentioned:
-                await message.reply(
-                    "AI chat is a **Happy Premium** feature. Ask the server owner to activate Premium.",
-                    mention_author=False
-                )
-            return
+        free_access = is_owner or user_prem or srv_prem or has_prem_role
+
+        if not free_access:
+            costs = await get_costs()
+            cost  = costs["ai_msg_cost"]
+            acc   = await get_account(message.author.id)
+            if acc["wallet"] < cost:
+                if is_mentioned:
+                    await message.reply(
+                        f"AI chat costs **{cost:,} HC** per message and you're short on funds. "
+                        f"Earn HC with `,work` or `,daily`, or rent free access with `,hcpremium <hours>`.",
+                        mention_author=False
+                    )
+                return
+            await add_wallet(message.author.id, -cost)
 
         sessions[channel_id] = current_time
 

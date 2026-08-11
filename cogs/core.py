@@ -11,7 +11,8 @@ from utils.db import (
 )
 from utils.helpers import (
     BOT_OWNER_ID, log_event, get_server_data,
-    is_premium_user, is_premium_server
+    is_premium_user, is_premium_server,
+    OwnerOnlyError, BlacklistedError
 )
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -221,14 +222,14 @@ class Core(commands.Cog):
                     color=0x2B2D31
                 ), mention_author=False)
 
-        sticky_data = await sticky_col.find_one({"channel_id": message.channel.id})
+        sticky_data = await sticky_col.find_one({"channel_id": str(message.channel.id)})
         if sticky_data:
             cid = message.channel.id
             self.sticky_ctr[cid] = self.sticky_ctr.get(cid, 0) + 1
             if self.sticky_ctr[cid] >= STICKY_THRESHOLD:
                 self.sticky_ctr[cid] = 0
                 try:
-                    old = await message.channel.fetch_message(sticky_data["message_id"])
+                    old = await message.channel.fetch_message(int(sticky_data["message_id"]))
                     await old.delete()
                 except:
                     pass
@@ -238,7 +239,7 @@ class Core(commands.Cog):
                 embed.set_footer(text="📌 Sticky Message")
                 new_s = await message.channel.send(embed=embed)
                 await sticky_col.update_one(
-                    {"channel_id": cid}, {"$set": {"message_id": new_s.id}}
+                    {"channel_id": str(cid)}, {"$set": {"message_id": str(new_s.id)}}
                 )
 
         if not gs or gs.get("levels_enabled", True):
@@ -355,6 +356,8 @@ class Core(commands.Cog):
             msg = f"You need `{missing}` to use this command."
         elif isinstance(error, app_commands.CommandOnCooldown):
             msg = f"Slow down! Try again in {error.retry_after:.1f}s."
+        elif "Owner only command" in str(error):
+            return
         else:
             msg = str(error)
         try:
@@ -376,6 +379,8 @@ class Core(commands.Cog):
         if isinstance(error, commands.CommandNotFound):
             return
         if isinstance(error, commands.DisabledCommand):
+            return
+        if isinstance(error, (OwnerOnlyError, BlacklistedError)):
             return
         if isinstance(error, commands.BotMissingPermissions):
             missing = ", ".join(p.replace("_", " ").title() for p in error.missing_permissions)

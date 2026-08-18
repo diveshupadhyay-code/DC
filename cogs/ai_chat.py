@@ -224,7 +224,7 @@ class AIChat(commands.Cog):
 
                 resp  = self.client.chat.completions.create(
                     messages=msgs,
-                    model="llama-3.3-70b-versatile",
+                    model="groq/compound-mini",
                     max_tokens=50,
                     temperature=0.7
                 )

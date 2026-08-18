@@ -225,7 +225,7 @@ class AIChat(commands.Cog):
                 resp  = self.client.chat.completions.create(
                     messages=msgs,
                     model="groq/compound-mini",
-                    max_tokens=50,
+                    max_tokens=100,
                     temperature=0.7
                 )
                 reply = resp.choices[0].message.content

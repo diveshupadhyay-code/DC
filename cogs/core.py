@@ -22,9 +22,10 @@ SESSION_TIMEOUT  = 300
 
 class Core(commands.Cog):
     def __init__(self, bot):
-        self.bot        = bot
-        self.sticky_ctr = {}
-        self.sessions   = {}
+        self.bot            = bot
+        self.sticky_ctr     = {}
+        self.sessions       = {}
+        self._announced_bday = set()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -97,51 +98,81 @@ class Core(commands.Cog):
             activity=discord.CustomActivity(name=text)
         )
 
-    @tasks.loop(hours=24)
+    @tasks.loop(seconds=60)
     async def birthday_loop(self):
         await self.bot.wait_until_ready()
         now = dt.now(IST)
         
+        if now.hour != 0 or now.minute != 0:
+            if now.hour == 1:
+                self._announced_bday.clear()
+            return
+
+        today_key = now.strftime("%Y-%m-%d")
+        if today_key in self._announced_bday:
+            return
+            
+        self._announced_bday.add(today_key)
+
         cursor = birthdays_col.find({
             "day": now.day, 
             "month": now.month
         })
         
         async for doc in cursor:
-            guild = self.bot.get_guild(int(doc.get("guild_id", 0)))
-            if not guild:
+            try:
+                guild_id = int(doc.get("guild_id", 0))
+                user_id  = int(doc.get("user_id", 0))
+            except (ValueError, TypeError):
+                continue
+
+            guild = self.bot.get_guild(guild_id)
+            if not guild or not guild.me:
                 continue
             
-            member = guild.get_member(int(doc["user_id"]))
+            member = guild.get_member(user_id)
             if not member:
                 try:
-                    member = await guild.fetch_member(int(doc["user_id"]))
-                except:
+                    member = await guild.fetch_member(user_id)
+                except Exception:
                     continue
                     
             gs  = await settings_col.find_one({"_id": str(guild.id)})
-            cid = (gs.get("birthday_channel")
-                   or gs.get("welcome_channel")) if gs else None
+            cid = None
+            if gs:
+                cid = gs.get("birthday_channel") or gs.get("welcome_channel")
             
-            ch  = self.bot.get_channel(int(cid)) if cid else guild.system_channel
-            if not ch and cid:
+            ch = None
+            if cid:
                 try:
-                    ch = await self.bot.fetch_channel(int(cid))
-                except:
+                    ch = self.bot.get_channel(int(cid)) or await self.bot.fetch_channel(int(cid))
+                except Exception:
                     ch = guild.system_channel
+            else:
+                ch = guild.system_channel
                     
-            if ch:
-                embed = discord.Embed(
-                    title="<a:appyworkbirthday:1522641672968736961> Happy Birthday!",
-                    description=f"Today is {member.mention}'s birthday! Wish them a wonderful day! <a:birthdaycake:1522641563153334423>",
-                    color=0xF0C040
-                )
-                embed.set_thumbnail(url=member.display_avatar.url)
-                embed.set_footer(text="Use ,birthday set DD/MM to register your birthday")
-                try:
-                    await ch.send(embed=embed)
-                except:
-                    pass
+            if not ch:
+                continue
+
+            perms = ch.permissions_for(guild.me)
+            if not perms.send_messages or not perms.embed_links:
+                continue
+
+            embed = discord.Embed(
+                title="✨ Midnight Celebration",
+                description=f"🎉 **Happy Birthday to {member.mention}!**\n\nWishing you an absolute banger of a day filled with success and happiness! 🎂",
+                color=0x2B2D31,
+                timestamp=now
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.add_field(name="Member", value=f"{member.name}", inline=True)
+            embed.add_field(name="Date", value=f"{now.strftime('%d %B')}", inline=True)
+            embed.set_footer(text="Birthday System", icon_url=guild.icon.url if guild.icon else None)
+
+            try:
+                await ch.send(content=f"🎂 {member.mention}", embed=embed)
+            except Exception:
+                pass
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):

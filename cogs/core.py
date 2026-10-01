@@ -159,7 +159,7 @@ class Core(commands.Cog):
                 continue
 
             embed = discord.Embed(
-                title="✨ Midnight Celebration",
+                title="✨ Celebration",
                 description=f"🎉 **Happy Birthday to {member.mention}!**\n\nWishing you an absolute banger of a day filled with success and happiness! 🎂",
                 color=0x2B2D31,
                 timestamp=now
@@ -167,7 +167,7 @@ class Core(commands.Cog):
             embed.set_thumbnail(url=member.display_avatar.url)
             embed.add_field(name="Member", value=f"{member.name}", inline=True)
             embed.add_field(name="Date", value=f"{now.strftime('%d %B')}", inline=True)
-            embed.set_footer(text="Birthday System", icon_url=guild.icon.url if guild.icon else None)
+            embed.set_footer(text="Birthday Celebration", icon_url=guild.icon.url if guild.icon else None)
 
             try:
                 await ch.send(content=f"🎂 {member.mention}", embed=embed)

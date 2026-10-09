@@ -12,28 +12,32 @@ TICKET_TYPES = {
     "event": "Event Inquiry",
 }
 
+def build_embed(title: str, description: str = None, color: int = 0x2B2D31) -> discord.Embed:
+    embed = discord.Embed(title=title, description=description, color=color)
+    embed.set_footer(text="Support Dashboard")
+    return embed
+
 class TicketTypeSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label=label, value=key, description=f"Click to open a {label} ticket")
+            discord.SelectOption(label=label, value=key, description=f"Open a {label} ticket")
             for key, label in TICKET_TYPES.items()
         ]
         super().__init__(
-            placeholder="Select a department...",
+            placeholder="Choose support department...",
             options=options,
             custom_id="ticket_type_select"
         )
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         ticket_type = self.values[0]
         await _create_ticket(interaction, ticket_type)
-
 
 class TicketSelectView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketTypeSelect())
-
 
 class TicketCreateView(discord.ui.View):
     def __init__(self):
@@ -47,18 +51,17 @@ class TicketCreateView(discord.ui.View):
     )
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select the department you need to reach:",
+            "Select the department you need help from:",
             view=TicketSelectView(),
             ephemeral=True
         )
-
 
 class TicketCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Close Request",
+        label="Close Ticket",
         style=discord.ButtonStyle.danger,
         emoji="🔒",
         custom_id="ticket_close_btn"
@@ -71,14 +74,13 @@ class TicketCloseView(discord.ui.View):
             return await interaction.response.send_message(
                 "This channel is not an active ticket.", ephemeral=True
             )
-        await interaction.response.send_message("Closing this ticket in 5 seconds...")
+        await interaction.response.send_message("Closing ticket in 5 seconds...")
         await asyncio.sleep(5)
         await tickets_col.delete_one({"channel_id": str(interaction.channel.id)})
         try:
             await interaction.channel.delete(reason=f"Closed by {interaction.user}")
-        except:
+        except discord.HTTPException:
             pass
-
 
 async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
     guild = interaction.guild
@@ -91,7 +93,7 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
         ch = guild.get_channel(int(existing["channel_id"]))
         if ch:
             return await interaction.followup.send(
-                f"You already have an open ticket right here: {ch.mention}", ephemeral=True
+                f"You already have an open ticket here: {ch.mention}", ephemeral=True
             )
 
     guild_doc = await tickets_col.find_one({"_id": str(guild.id)}) or {}
@@ -105,10 +107,10 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=False),
         member: discord.PermissionOverwrite(
-            read_messages=True, send_messages=True, attach_files=True
+            read_messages=True, send_messages=True, attach_files=True, embed_links=True
         ),
         guild.me: discord.PermissionOverwrite(
-            read_messages=True, send_messages=True, attach_files=True, manage_messages=True
+            read_messages=True, send_messages=True, attach_files=True, manage_channels=True, manage_messages=True
         ),
     }
     
@@ -116,7 +118,7 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
         staff = guild.get_role(int(guild_doc["staff_role_id"]))
         if staff:
             overwrites[staff] = discord.PermissionOverwrite(
-                read_messages=True, send_messages=True, attach_files=True
+                read_messages=True, send_messages=True, attach_files=True, embed_links=True
             )
 
     category = discord.utils.get(guild.categories, name="Tickets")
@@ -126,7 +128,7 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
                 "Tickets",
                 overwrites={guild.default_role: discord.PermissionOverwrite(read_messages=False)}
             )
-        except:
+        except discord.Forbidden:
             category = None
 
     try:
@@ -134,11 +136,11 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
             name=f"ticket-{count:04d}",
             overwrites=overwrites,
             category=category,
-            topic=f"{label} | Opened by {member}"
+            topic=f"{label} | Created by {member}"
         )
     except discord.Forbidden:
         return await interaction.followup.send(
-            "I don't have the required permissions to create a channel for you.", ephemeral=True
+            "I lack permissions to create channel. Please give me Manage Channels permission.", ephemeral=True
         )
 
     await tickets_col.insert_one({
@@ -149,30 +151,20 @@ async def _create_ticket(interaction: discord.Interaction, ticket_type: str):
         "type": ticket_type
     })
 
-    embed = discord.Embed(
-        title=f"Ticket Support — {label}",
-        description=(
+    embed = build_embed(
+        f"Ticket Support — {label}",
+        (
             f"Hello {member.mention},\n\n"
-            "Thank you for reaching out. Please state your question or issue in detail below, "
-            "and our team will be with you shortly.\n\n"
-            "**Useful Commands:**\n"
-            "`,ticket add @user` ➔ Give access to a friend\n"
-            "`,ticket remove @user` ➔ Remove access for a user\n"
-            "`,ticket close` ➔ Shut down this channel"
-        ),
-        color=0x2B2D31
+            "Welcome! Please describe your issue in detail. "
+            "Our team will assist you shortly.\n\n"
+            "**Commands:**\n"
+            "`,ticket add @user` • Add someone to ticket\n"
+            "`,ticket remove @user` • Remove someone from ticket\n"
+            "`,ticket close` • Close this channel"
+        )
     )
-    embed.set_footer(text="Click the button below to close this inquiry anytime.")
     await ch.send(content=member.mention, embed=embed, view=TicketCloseView())
-
-    try:
-        await interaction.followup.send(f"Your ticket has been created: {ch.mention}", ephemeral=True)
-    except:
-        try:
-            await interaction.response.send_message(f"Your ticket has been created: {ch.mention}", ephemeral=True)
-        except:
-            pass
-
+    await interaction.followup.send(f"Your ticket is ready: {ch.mention}", ephemeral=True)
 
 class Tickets(commands.Cog):
     def __init__(self, bot):
@@ -180,25 +172,24 @@ class Tickets(commands.Cog):
 
     @commands.group(invoke_without_command=True)
     async def ticket(self, ctx):
-        embed = discord.Embed(
-            title="Ticket Management System", 
-            description="Use the sub-commands below to manage server support requests.",
-            color=0x2B2D31
+        embed = build_embed(
+            "⚙️ Ticket System Control Panel",
+            "Use the commands below to configure and control support tickets."
         )
         embed.add_field(
-            name="🛠️ Staff Tools",
+            name="🛠️ Admin & Staff Commands",
             value=(
-                "`,ticket setup` ➔ Drop the ticket setup panel here\n"
-                "`,ticket staffrole @role` ➔ Set the designated role to view tickets\n"
-                "`,ticket close` ➔ Close and delete the current ticket"
+                "`,ticket setup` • Send ticket creation panel\n"
+                "`,ticket staffrole @role` • Set staff team role\n"
+                "`,ticket close` • Close ticket channel"
             ),
             inline=False
         )
         embed.add_field(
             name="👥 Member Management",
             value=(
-                "`,ticket add @user` ➔ Invite a user into the active ticket\n"
-                "`,ticket remove @user` ➔ Remove a user from the active ticket"
+                "`,ticket add @user` • Give a user access to ticket\n"
+                "`,ticket remove @user` • Remove user access from ticket"
             ),
             inline=False
         )
@@ -207,18 +198,15 @@ class Tickets(commands.Cog):
     @ticket.command(name="setup")
     @commands.has_permissions(administrator=True)
     async def ticket_setup(self, ctx):
-        embed = discord.Embed(
-            title="Contact Server Support",
-            description=(
-                "Need assistance? Click the button below to connect with our team.\n\n"
-                "Please make sure to choose the most relevant category so we can assist you faster."
-            ),
-            color=0x2B2D31
+        embed = build_embed(
+            "📩 Contact Server Support",
+            "Click the button below to start a ticket with our support team.\n\n"
+            "Please pick the right category so we can help you faster!"
         )
         await ctx.send(embed=embed, view=TicketCreateView())
         try:
             await ctx.message.delete()
-        except:
+        except discord.HTTPException:
             pass
 
     @ticket.command(name="close")
@@ -228,52 +216,55 @@ class Tickets(commands.Cog):
             {"channel_id": str(ctx.channel.id), "active": True}
         )
         if not ticket:
-            return await ctx.reply("This channel isn't an active ticket.")
-        await ctx.reply("Closing this channel in 5 seconds...")
+            return await ctx.reply(embed=build_embed("❌ Error", "This channel is not an active ticket."))
+        
+        await ctx.reply(embed=build_embed("🔒 Closing", "Closing this ticket channel in 5 seconds..."))
         await asyncio.sleep(5)
         await tickets_col.delete_one({"channel_id": str(ctx.channel.id)})
         await log_event(self.bot, ctx.guild, "ticket_close", f"Ticket closed by {ctx.author}.")
         try:
             await ctx.channel.delete(reason=f"Closed by {ctx.author}")
-        except:
+        except discord.HTTPException:
             pass
 
     @ticket.command(name="add")
     @ctx_mod()
     async def ticket_add(self, ctx, member: discord.Member = None):
         if not member:
-            return await ctx.reply("Please specify a user. Example: `,ticket add @username`")
+            return await ctx.reply(embed=build_embed("❌ Error", "Please mention a user. Example: `,ticket add @user`"))
         ticket = await tickets_col.find_one({"channel_id": str(ctx.channel.id), "active": True})
         if not ticket:
-            return await ctx.reply("This command can only be used inside an active ticket channel.")
+            return await ctx.reply(embed=build_embed("❌ Error", "You can only use this command inside an active ticket."))
+        
         await ctx.channel.set_permissions(
-            member, read_messages=True, send_messages=True, attach_files=True
+            member, read_messages=True, send_messages=True, attach_files=True, embed_links=True
         )
-        await ctx.reply(f"Added {member.mention} to this ticket thread.")
+        await ctx.reply(embed=build_embed("✅ Done", f"Added {member.mention} to this ticket."))
 
     @ticket.command(name="remove")
     @ctx_mod()
     async def ticket_remove(self, ctx, member: discord.Member = None):
         if not member:
-            return await ctx.reply("Please specify a user. Example: `,ticket remove @username`")
+            return await ctx.reply(embed=build_embed("❌ Error", "Please mention a user. Example: `,ticket remove @user`"))
         ticket = await tickets_col.find_one({"channel_id": str(ctx.channel.id), "active": True})
         if not ticket:
-            return await ctx.reply("This command can only be used inside an active ticket channel.")
+            return await ctx.reply(embed=build_embed("❌ Error", "You can only use this command inside an active ticket."))
+        
         await ctx.channel.set_permissions(member, overwrite=None)
-        await ctx.reply(f"Removed {member.mention} from this ticket thread.")
+        await ctx.reply(embed=build_embed("✅ Done", f"Removed {member.mention} from this ticket."))
 
     @ticket.command(name="staffrole")
     @commands.has_permissions(administrator=True)
     async def ticket_staffrole(self, ctx, role: discord.Role = None):
         if not role:
-            return await ctx.reply("Please mention a role. Example: `,ticket staffrole @Staff`")
+            return await ctx.reply(embed=build_embed("❌ Error", "Please mention a role. Example: `,ticket staffrole @Staff`"))
+        
         await tickets_col.update_one(
             {"_id": str(ctx.guild.id)},
             {"$set": {"staff_role_id": str(role.id)}},
             upsert=True
         )
-        await ctx.reply(f"Success! {role.mention} has been configured as the server support team.")
-
+        await ctx.reply(embed=build_embed("✅ Success", f"Configured {role.mention} as the official support team role."))
 
 async def setup(bot):
     await bot.add_cog(Tickets(bot))

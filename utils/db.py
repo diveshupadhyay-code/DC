@@ -54,3 +54,5 @@ ep_config_col       = db["extraperm_config"]
 cmd_aliases_col     = db["command_aliases"]
 antinuke_col        = db["antinuke_config"]  # anti-nuke config + whitelist
 blacklist_col       = db["blacklist"]
+calls_col           = db["Calls"]
+autoresponder_col   = db["Autoresponders"]

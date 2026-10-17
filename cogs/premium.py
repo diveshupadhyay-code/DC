@@ -7,7 +7,7 @@ import re
 
 from utils.db import (
     premium_col, server_status_col, voicemaster_col,
-    bump_col, settings_col, booster_roles_col
+    bump_col, settings_col, booster_roles_col, calls_col
 )
 from utils.helpers import (
     BOT_OWNER_ID, ctx_owner, ctx_premium, ctx_admin,
@@ -16,10 +16,6 @@ from utils.helpers import (
 
 GOLD   = 0xF0C040
 SILVER = 0xC0C0C0
-
-_active_calls = {}   
-_waiting_list = []   
-
 
 def _premium_required_embed() -> discord.Embed:
     embed = discord.Embed(
@@ -33,6 +29,39 @@ def _premium_required_embed() -> discord.Embed:
     embed.set_footer(text="Happy Premium · Exclusive features for serious servers")
     return embed
 
+async def _get_call_data(guild_id: int):
+    doc = await calls_col.find_one({"server_id": guild_id})
+    if doc:
+        return doc
+    return None
+
+async def _set_call_data(guild_id: int, partner_channel: int, my_channel: int, guild_name: str, partner_guild_id: int):
+    await calls_col.update_one(
+        {"server_id": guild_id},
+        {"$set": {
+            "server_id": guild_id,
+            "partner_channel": partner_channel,
+            "my_channel": my_channel,
+            "guild_name": guild_name,
+            "partner_guild_id": partner_guild_id
+        }},
+        upsert=True
+    )
+
+async def _remove_call_data(guild_id: int):
+    await calls_col.delete_one({"server_id": guild_id})
+
+async def _get_webhook(channel: discord.TextChannel) -> discord.Webhook:
+    webhooks = await channel.webhooks()
+    for wh in webhooks:
+        if wh.user and wh.user.id == channel.guild.me.id:
+            return wh
+    try:
+        return await channel.create_webhook(name="Happy Global Call")
+    except:
+        for wh in webhooks:
+            return wh
+        raise Exception("Missing Manage Webhooks permission.")
 
 class Premium(commands.Cog):
     def __init__(self, bot):
@@ -574,11 +603,11 @@ class Premium(commands.Cog):
         sid = ctx.guild.id
         cid = ctx.channel.id
 
-        if sid in _active_calls:
-            data   = _active_calls[sid]
-            pch    = self.bot.get_channel(data["partner_channel"])
+        existing_call = await _get_call_data(sid)
+        if existing_call:
+            pch = self.bot.get_channel(existing_call["partner_channel"])
             pfname = pch.guild.name if pch else "Unknown Server"
-            embed  = discord.Embed(
+            embed = discord.Embed(
                 description=(
                     f"Already on a call with **{pfname}**.\n"
                     "Use `,hangup` to end it first."
@@ -587,8 +616,11 @@ class Premium(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        if any(d["server_id"] == sid for d in _waiting_list):
-            pos = next(i for i, d in enumerate(_waiting_list) if d["server_id"] == sid) + 1
+        waiting_list_cursor = calls_col.find({"waiting": True})
+        waiting_list = await waiting_list_cursor.to_list(100)
+
+        if any(d["server_id"] == sid for d in waiting_list):
+            pos = next(i for i, d in enumerate(waiting_list) if d["server_id"] == sid) + 1
             embed = discord.Embed(
                 description=f"Already in the queue at position **#{pos}**.\nUse `,hangup` to cancel.",
                 color=GOLD
@@ -596,19 +628,19 @@ class Premium(commands.Cog):
             return await ctx.reply(embed=embed)
 
         matching_partner = None
-        for item in _waiting_list:
+        for item in waiting_list:
             if item["server_id"] != sid:
                 matching_partner = item
                 break
 
         if matching_partner:
-            _waiting_list.remove(matching_partner)
-            p_sid     = matching_partner["server_id"]
-            p_cid     = matching_partner["channel_id"]
-            p_name    = matching_partner.get("guild_name", "Unknown Server")
+            await calls_col.delete_one({"server_id": matching_partner["server_id"]})
+            p_sid  = matching_partner["server_id"]
+            p_cid  = matching_partner["channel_id"]
+            p_name = matching_partner.get("guild_name", "Unknown Server")
 
-            _active_calls[sid]   = {"partner_channel": p_cid, "my_channel": cid,   "guild_name": p_name}
-            _active_calls[p_sid] = {"partner_channel": cid,   "my_channel": p_cid, "guild_name": ctx.guild.name}
+            await _set_call_data(sid, p_cid, cid, p_name, p_sid)
+            await _set_call_data(p_sid, cid, p_cid, ctx.guild.name, sid)
 
             my_embed = discord.Embed(
                 title="Call Connected",
@@ -636,12 +668,20 @@ class Premium(commands.Cog):
             if pch:
                 await pch.send(embed=partner_embed)
         else:
-            _waiting_list.append({
-                "server_id":  sid,
-                "channel_id": cid,
-                "guild_name": ctx.guild.name,
-            })
-            queue_pos = len(_waiting_list)
+            await calls_col.update_one(
+                {"server_id": sid},
+                {"$set": {
+                    "server_id": sid,
+                    "channel_id": cid,
+                    "guild_name": ctx.guild.name,
+                    "waiting": True
+                }},
+                upsert=True
+            )
+            waiting_cursor = calls_col.find({"waiting": True})
+            all_waiting = await waiting_cursor.to_list(100)
+            queue_pos = len(all_waiting)
+            
             embed = discord.Embed(
                 title="Waiting for a Partner",
                 description=(
@@ -660,57 +700,56 @@ class Premium(commands.Cog):
     async def hangup(self, ctx):
         sid = ctx.guild.id
 
-        in_wait = next((d for d in _waiting_list if d["server_id"] == sid), None)
-        if in_wait:
-            _waiting_list.remove(in_wait)
+        doc = await calls_col.find_one({"server_id": sid})
+        if not doc:
+            return await ctx.reply(embed=discord.Embed(
+                description="No active call or queue entry found.",
+                color=0x2B2D31
+            ))
+
+        if doc.get("waiting"):
+            await calls_col.delete_one({"server_id": sid})
             embed = discord.Embed(
                 description="Removed from the call queue.",
                 color=0x2B2D31
             )
             return await ctx.reply(embed=embed)
 
-        if sid in _active_calls:
-            data   = _active_calls.pop(sid)
-            p_cid  = data.get("partner_channel")
-            p_name = data.get("guild_name", "the other server")
+        p_cid = doc.get("partner_channel")
+        p_sid = doc.get("partner_guild_id")
+        p_name = doc.get("guild_name", "the other server")
 
-            for psid, pdata in list(_active_calls.items()):
-                if pdata.get("my_channel") == p_cid:
-                    del _active_calls[psid]
-                    break
+        await _remove_call_data(sid)
+        if p_sid:
+            await _remove_call_data(p_sid)
 
-            embed = discord.Embed(
-                title="Call Ended",
-                description=f"The call with **{p_name}** has ended.",
-                color=0x2B2D31
-            )
-            await ctx.reply(embed=embed)
+        embed = discord.Embed(
+            title="Call Ended",
+            description=f"The call with **{p_name}** has ended.",
+            color=0x2B2D31
+        )
+        await ctx.reply(embed=embed)
 
-            if p_cid:
-                pch = self.bot.get_channel(p_cid)
-                if pch:
-                    try:
-                        await pch.send(embed=discord.Embed(
-                            title="Call Ended",
-                            description=f"**{ctx.guild.name}** ended the call.",
-                            color=0x2B2D31
-                        ))
-                    except:
-                        pass
-        else:
-            await ctx.reply(embed=discord.Embed(
-                description="No active call or queue entry found.",
-                color=0x2B2D31
-            ))
+        if p_cid:
+            pch = self.bot.get_channel(p_cid)
+            if pch:
+                try:
+                    await pch.send(embed=discord.Embed(
+                        title="Call Ended",
+                        description=f"**{ctx.guild.name}** ended the call.",
+                        color=0x2B2D31
+                    ))
+                except:
+                    pass
 
     @commands.command(aliases=["callstatus", "cs"])
     async def callinfo(self, ctx):
         sid  = ctx.guild.id
-        data = _active_calls.get(sid)
+        doc = await calls_col.find_one({"server_id": sid})
 
-        if data:
-            pch    = self.bot.get_channel(data["partner_channel"])
-            pname  = pch.guild.name if pch else data.get("guild_name", "Unknown")
+        if doc and not doc.get("waiting"):
+            pch    = self.bot.get_channel(doc["partner_channel"])
+            pname  = pch.guild.name if pch else doc.get("guild_name", "Unknown")
             embed  = discord.Embed(
                 title="Call Active",
                 description=(
@@ -721,50 +760,56 @@ class Premium(commands.Cog):
             )
             embed.add_field(name="Partner Channel", value=pch.mention if pch else "Unknown", inline=True)
             embed.add_field(name="End Call",        value="`,hangup`",                        inline=True)
-        elif any(d["server_id"] == sid for d in _waiting_list):
-            pos   = next(i for i, d in enumerate(_waiting_list) if d["server_id"] == sid) + 1
+        elif doc and doc.get("waiting"):
+            waiting_cursor = calls_col.find({"waiting": True})
+            all_waiting = await waiting_cursor.to_list(100)
+            pos = next((i + 1 for i, d in enumerate(all_waiting) if d["server_id"] == sid), 1)
             embed = discord.Embed(
                 description=f"In queue at position **#{pos}**. Waiting for a partner.",
                 color=GOLD
             )
             embed.add_field(name="Cancel", value="`,hangup`", inline=True)
-            embed.add_field(name="Queue size", value=str(len(_waiting_list)), inline=True)
+            embed.add_field(name="Queue size", value=str(len(all_waiting)), inline=True)
         else:
+            waiting_cursor = calls_col.find({"waiting": True})
+            all_waiting = await waiting_cursor.to_list(100)
             embed = discord.Embed(
                 description="No active call. Use `,call` to connect to another server.",
                 color=0x2B2D31
             )
-            embed.add_field(name="Servers in queue", value=str(len(_waiting_list)), inline=True)
+            embed.add_field(name="Servers in queue", value=str(len(all_waiting)), inline=True)
 
         embed.set_footer(text="Happy Global Call · Premium Feature")
         await ctx.reply(embed=embed)
 
     async def relay_call(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
         sid  = message.guild.id
-        data = _active_calls.get(sid)
-        if not data or message.channel.id != data.get("my_channel") or message.author.bot:
+        doc = await calls_col.find_one({"server_id": sid})
+        if not doc or doc.get("waiting") or message.channel.id != doc.get("my_channel"):
             return
         if message.mention_everyone:
             return
-        pch = self.bot.get_channel(data["partner_channel"])
+        pch = self.bot.get_channel(doc["partner_channel"])
         if not pch:
             return
         try:
-            relay_embed = discord.Embed(
-                description=message.content[:1000] if message.content else "*[no text]*",
-                color=0x2B2D31
-            )
-            relay_embed.set_author(
-                name=f"{message.author.display_name} · {message.guild.name}",
-                icon_url=message.author.display_avatar.url
-            )
+            webhook = await _get_webhook(pch)
+            tag = f"[{message.guild.name}]"
+            avatar_url = message.guild.icon.url if message.guild.icon else message.author.display_avatar.url
+            
+            content = message.content if message.content else ""
             if message.attachments:
-                relay_embed.add_field(
-                    name="Attachments",
-                    value="\n".join(a.url for a in message.attachments[:3]),
-                    inline=False
-                )
-            await pch.send(embed=relay_embed)
+                att_urls = "\n".join(a.url for a in message.attachments[:3])
+                content = f"{content}\n{att_urls}".strip()
+
+            await webhook.send(
+                content=content if content else None,
+                username=f"{message.author.display_name} {tag}",
+                avatar_url=avatar_url,
+                allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False)
+            )
         except:
             pass
 
@@ -833,7 +878,7 @@ class Premium(commands.Cog):
             )
 
         result_embed.add_field(
-            name="Next Steps",
+            name="Next Messages",
             value=(
                 "`,welcome set #channel` — set welcome channel\n"
                 "`,bye set #channel` — set goodbye channel\n"
@@ -845,7 +890,6 @@ class Premium(commands.Cog):
         )
         result_embed.set_footer(text="Happy Premium · Quick Setup Wizard")
         await msg.edit(embed=result_embed)
-
 
 async def setup(bot):
     await bot.add_cog(Premium(bot))

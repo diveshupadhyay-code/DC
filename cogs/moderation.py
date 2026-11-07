@@ -7,15 +7,12 @@ from datetime import timedelta, datetime, timezone
 
 from utils.db import (
     warns_col, settings_col, jail_col,
-    notes_col, cases_col, antispam_col
+    notes_col, cases_col
 )
 from utils.helpers import (
     BOT_OWNER_ID, ctx_mod, ctx_admin, ctx_owner,
     log_event, is_mod_or_owner, is_admin_or_owner
 )
-
-_msg_timestamps: dict = {}
-
 
 async def _toggle_lock(channel, lock: bool, reason: str):
     ow = channel.overwrites_for(channel.guild.default_role)
@@ -82,49 +79,6 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot or not message.guild:
-            return
-        if message.author.id == BOT_OWNER_ID:
-            return
-
-        cfg = await antispam_col.find_one({"guild_id": str(message.guild.id)})
-        if not cfg or not cfg.get("enabled"):
-            return
-
-        threshold = cfg.get("threshold", 5)
-        action    = cfg.get("action", "mute")
-        key       = (message.guild.id, message.author.id)
-        now       = datetime.now(timezone.utc).timestamp()
-
-        stamps = _msg_timestamps.get(key, [])
-        stamps = [t for t in stamps if now - t < 5]
-        stamps.append(now)
-        _msg_timestamps[key] = stamps
-
-        if len(stamps) >= threshold:
-            _msg_timestamps[key] = []
-            member = message.author
-            try:
-                if action == "mute":
-                    await member.timeout(timedelta(minutes=10),
-                                         reason="Spamming messages too fast")
-                    await message.channel.send(
-                        embed=discord.Embed(
-                            description=f"{member.mention} has been muted for 10 minutes for spamming.",
-                            color=0x2B2D31
-                        ), delete_after=8
-                    )
-                elif action == "kick":
-                    await member.kick(reason="Spamming messages too fast")
-                elif action == "ban":
-                    await member.ban(reason="Spamming messages too fast")
-                await log_event(self.bot, message.guild, "antispam",
-                                f"{member} triggered anti-spam ({action}).")
-            except discord.Forbidden:
-                pass
-
     @commands.command()
     @commands.has_permissions(kick_members=True)
     @ctx_mod()
@@ -178,72 +132,135 @@ class Moderation(commands.Cog):
             ephemeral=True
         )
 
-    @commands.command()
-    @commands.has_permissions(ban_members=True)
-    @ctx_mod()
-    async def ban(self, ctx, member: discord.Member = None, *, reason="No reason provided"):
-        if not member:
-            return await ctx.reply("Usage: `,ban <@user/id> [reason]`")
-        if not _hierarchy_ok(ctx.author, member, BOT_OWNER_ID):
-            return await ctx.reply("You cannot ban this user due to role hierarchy.")
-        if ctx.guild.me.top_role <= member.top_role:
-            return await ctx.reply("I cannot ban this user due to role hierarchy.")
+    @staticmethod
+    def _ban_problem(guild, actor, user):
+        if user.id == actor.id:
+            return "You cannot ban yourself."
+        if user.id == guild.me.id:
+            return "I cannot ban myself."
+        if user.id == guild.owner_id:
+            return "The server owner cannot be banned."
+        member = guild.get_member(user.id)
+        if member is None:
+            return None
+        if not _hierarchy_ok(actor, member, BOT_OWNER_ID):
+            return "You cannot ban this user due to role hierarchy."
+        if guild.me.top_role <= member.top_role:
+            return "I cannot ban this user due to role hierarchy."
+        return None
 
-        case = await _log_case(str(ctx.guild.id), "ban", member, ctx.author, reason)
+    async def _dm_ban_notice(self, guild, user, text):
+        if guild.get_member(user.id) is None:
+            return
         try:
-            await member.send(embed=discord.Embed(
-                description=f"You have been permanently banned from **{ctx.guild.name}**.\nReason: {reason}",
-                color=0x2B2D31
-            ))
+            await user.send(embed=discord.Embed(description=text, color=0x2B2D31))
         except discord.HTTPException:
             pass
-        await member.ban(reason=reason, delete_message_days=1)
-        await ctx.reply(embed=_build_action_embed(
-            "User Banned", member, ctx.author, reason, case, color=0x2B2D31
-        ))
-        await log_event(self.bot, ctx.guild, "ban",
-                        f"Case #{case} — {member} banned by {ctx.author}. {reason}")
 
     @commands.command()
     @commands.has_permissions(ban_members=True)
     @ctx_mod()
-    async def tempban(self, ctx, member: discord.Member = None,
+    async def ban(self, ctx, user: discord.User = None, *, reason="No reason provided"):
+        if not user:
+            return await ctx.reply("Usage: `,ban <@user/id> [reason]`\nThis works even if the user already left the server.")
+        problem = self._ban_problem(ctx.guild, ctx.author, user)
+        if problem:
+            return await ctx.reply(problem)
+
+        in_server = ctx.guild.get_member(user.id) is not None
+        await self._dm_ban_notice(
+            ctx.guild, user,
+            f"You have been permanently banned from **{ctx.guild.name}**.\nReason: {reason}"
+        )
+        try:
+            await ctx.guild.ban(user, reason=reason, delete_message_days=1)
+        except discord.Forbidden:
+            return await ctx.reply("I do not have permission to ban this user.")
+        except discord.HTTPException:
+            return await ctx.reply("Discord rejected the ban. Try again.")
+
+        case = await _log_case(str(ctx.guild.id), "ban", user, ctx.author, reason)
+        await ctx.reply(embed=_build_action_embed(
+            "User Banned", user, ctx.author, reason, case, color=0x2B2D31,
+            extra={"Status": "Was in the server" if in_server else "Had already left"}
+        ))
+        await log_event(self.bot, ctx.guild, "ban",
+                        f"Case #{case} — {user} banned by {ctx.author}. {reason}")
+
+    @commands.command()
+    @commands.has_permissions(ban_members=True)
+    @ctx_mod()
+    async def massban(self, ctx, *, text: str = None):
+        ids = list(dict.fromkeys(int(x) for x in re.findall(r"\d{15,21}", text or "")))
+        if not ids:
+            return await ctx.reply("Usage: `,massban <id> <id> <id> [reason]`\nBans up to 50 users, even if they already left.")
+        if len(ids) > 50:
+            return await ctx.reply("You can ban at most 50 users at once.")
+        reason = re.sub(r"<@!?\d+>|\d{15,21}", "", text).strip() or "Mass ban"
+
+        banned, skipped = 0, []
+        for uid in ids:
+            problem = self._ban_problem(ctx.guild, ctx.author, discord.Object(id=uid))
+            if problem:
+                skipped.append(uid)
+                continue
+            try:
+                await ctx.guild.ban(discord.Object(id=uid), reason=f"[Massban] {reason}", delete_message_days=1)
+                banned += 1
+            except discord.HTTPException:
+                skipped.append(uid)
+            await asyncio.sleep(0.3)
+
+        embed = discord.Embed(title="Mass Ban Complete", color=0x2B2D31, timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="Banned", value=str(banned), inline=True)
+        embed.add_field(name="Skipped", value=str(len(skipped)), inline=True)
+        embed.add_field(name="Reason", value=reason[:500], inline=False)
+        if skipped:
+            embed.add_field(name="Could not ban", value="\n".join(f"`{u}`" for u in skipped[:15]), inline=False)
+        await ctx.reply(embed=embed)
+        await log_event(self.bot, ctx.guild, "massban",
+                        f"{ctx.author} banned {banned} users at once. {reason}")
+
+    @commands.command()
+    @commands.has_permissions(ban_members=True)
+    @ctx_mod()
+    async def tempban(self, ctx, user: discord.User = None,
                       duration: str = None, *, reason="No reason provided"):
-        if not member or not duration:
+        if not user or not duration:
             return await ctx.reply("Usage: `,tempban <@user/id> <duration> [reason]`")
-        if not _hierarchy_ok(ctx.author, member, BOT_OWNER_ID):
-            return await ctx.reply("You cannot ban this user due to role hierarchy.")
-        if ctx.guild.me.top_role <= member.top_role:
-            return await ctx.reply("I cannot ban this user due to role hierarchy.")
+        problem = self._ban_problem(ctx.guild, ctx.author, user)
+        if problem:
+            return await ctx.reply(problem)
 
         minutes = self._parse_duration(duration)
         if minutes is None:
             return await ctx.reply("Invalid time format. Use something like `10m`, `2h`, or `7d`.")
 
-        case = await _log_case(str(ctx.guild.id), "tempban", member, ctx.author, reason)
+        await self._dm_ban_notice(
+            ctx.guild, user,
+            f"You have been temporarily banned from **{ctx.guild.name}**.\n"
+            f"Time: **{duration}**\nReason: {reason}"
+        )
         try:
-            await member.send(embed=discord.Embed(
-                description=(
-                    f"You have been temporarily banned from **{ctx.guild.name}**.\n"
-                    f"Time: **{duration}**\nReason: {reason}"
-                ),
-                color=0x2B2D31
-            ))
+            await ctx.guild.ban(user, reason=f"[Tempban {duration}] {reason}", delete_message_days=1)
+        except discord.Forbidden:
+            return await ctx.reply("I do not have permission to ban this user.")
         except discord.HTTPException:
-            pass
-        await member.ban(reason=f"[Tempban {duration}] {reason}", delete_message_days=1)
+            return await ctx.reply("Discord rejected the ban. Try again.")
+
+        case = await _log_case(str(ctx.guild.id), "tempban", user, ctx.author, reason)
         await ctx.reply(embed=_build_action_embed(
-            "User Temporarily Banned", member, ctx.author, reason, case,
+            "User Temporarily Banned", user, ctx.author, reason, case,
             color=0x2B2D31, extra={"Duration": duration}
         ))
         await log_event(self.bot, ctx.guild, "tempban",
-                        f"Case #{case} — {member} tempbanned {duration} by {ctx.author}.")
+                        f"Case #{case} — {user} tempbanned {duration} by {ctx.author}.")
 
         await asyncio.sleep(minutes * 60)
         try:
-            await ctx.guild.unban(member, reason=f"Tempban expired ({duration})")
+            await ctx.guild.unban(user, reason=f"Tempban expired ({duration})")
             await log_event(self.bot, ctx.guild, "tempban_expired",
-                            f"{member} ban has expired automatically after {duration}.")
+                            f"{user} ban has expired automatically after {duration}.")
         except discord.HTTPException:
             pass
 
@@ -265,33 +282,33 @@ class Moderation(commands.Cog):
         except discord.NotFound:
             await ctx.reply("This user could not be found in the ban list.")
 
-    @app_commands.command(name="ban", description="Ban a user from the server")
+    @app_commands.command(name="ban", description="Ban a user, even if they already left")
     @app_commands.checks.has_permissions(ban_members=True)
     @is_mod_or_owner()
     async def slash_ban(self, interaction: discord.Interaction,
-                         member: discord.Member, reason: str = "No reason provided"):
-        if not _hierarchy_ok(interaction.user, member, BOT_OWNER_ID):
-            return await interaction.response.send_message(
-                "You cannot ban this user due to role hierarchy.", ephemeral=True
-            )
-        if interaction.guild.me.top_role <= member.top_role:
-            return await interaction.response.send_message(
-                "I cannot ban this user due to role hierarchy.", ephemeral=True
-            )
-            
-        case = await _log_case(str(interaction.guild.id), "ban", member, interaction.user, reason)
+                         user: discord.User, reason: str = "No reason provided"):
+        problem = self._ban_problem(interaction.guild, interaction.user, user)
+        if problem:
+            return await interaction.response.send_message(problem, ephemeral=True)
+
+        await self._dm_ban_notice(
+            interaction.guild, user,
+            f"You have been permanently banned from **{interaction.guild.name}**.\nReason: {reason}"
+        )
         try:
-            await member.send(embed=discord.Embed(
-                description=f"You have been permanently banned from **{interaction.guild.name}**.\nReason: {reason}",
-                color=0x2B2D31
-            ))
+            await interaction.guild.ban(user, reason=reason, delete_message_days=1)
+        except discord.Forbidden:
+            return await interaction.response.send_message(
+                "I do not have permission to ban this user.", ephemeral=True
+            )
         except discord.HTTPException:
-            pass
-            
-        await member.ban(reason=reason, delete_message_days=1)
+            return await interaction.response.send_message(
+                "Discord rejected the ban. Try again.", ephemeral=True
+            )
+        case = await _log_case(str(interaction.guild.id), "ban", user, interaction.user, reason)
         await interaction.response.send_message(
             embed=discord.Embed(
-                description=f"Banned **{member}**. Case #{case}.", color=0x2B2D31
+                description=f"Banned **{user}**. Case #{case}.", color=0x2B2D31
             ), ephemeral=True
         )
 
@@ -932,47 +949,6 @@ class Moderation(commands.Cog):
         embed.add_field(name="Date",   value=ts_str, inline=True)
         embed.add_field(name="Reason", value=doc.get("reason", "?"), inline=False)
         await ctx.reply(embed=embed)
-
-    @commands.group(invoke_without_command=True)
-    @commands.has_permissions(administrator=True)
-    async def antispam(self, ctx):
-        cfg = await antispam_col.find_one({"guild_id": str(ctx.guild.id)}) or {}
-        embed = discord.Embed(title="Anti-Spam Settings", color=0x2B2D31)
-        embed.add_field(name="Status",    value="Enabled" if cfg.get("enabled") else "Disabled", inline=True)
-        embed.add_field(name="Limit",     value=f"{cfg.get('threshold', 5)} msgs / 5s", inline=True)
-        embed.add_field(name="Punishment", value=str(cfg.get('action', 'mute')).upper(), inline=True)
-        embed.add_field(
-            name="Commands",
-            value="`,antispam enable` | `,antispam disable` | `,antispam set <limit> <action>`",
-            inline=False
-        )
-        await ctx.reply(embed=embed)
-
-    @antispam.command(name="enable")
-    @commands.has_permissions(administrator=True)
-    async def antispam_enable(self, ctx):
-        await antispam_col.update_one({"guild_id": str(ctx.guild.id)}, {"$set": {"enabled": True}}, upsert=True)
-        await ctx.reply(embed=discord.Embed(description="Anti-spam enabled.", color=0x2B2D31))
-
-    @antispam.command(name="disable")
-    @commands.has_permissions(administrator=True)
-    async def antispam_disable(self, ctx):
-        await antispam_col.update_one({"guild_id": str(ctx.guild.id)}, {"$set": {"enabled": False}}, upsert=True)
-        await ctx.reply(embed=discord.Embed(description="Anti-spam disabled.", color=0x2B2D31))
-
-    @antispam.command(name="set")
-    @commands.has_permissions(administrator=True)
-    async def antispam_set(self, ctx, threshold: int = 5, action: str = "mute"):
-        if action.lower() not in ("mute", "kick", "ban"):
-            return await ctx.reply("Action must be `mute`, `kick`, or `ban`.")
-        if not 2 <= threshold <= 30:
-            return await ctx.reply("Limit must be between 2 and 30.")
-        await antispam_col.update_one(
-            {"guild_id": str(ctx.guild.id)},
-            {"$set": {"threshold": threshold, "action": action.lower()}},
-            upsert=True
-        )
-        await ctx.reply(embed=discord.Embed(description=f"Anti-spam set to **{threshold}** msgs/5s -> **{action}**.", color=0x2B2D31))
 
     @commands.command()
     @commands.has_permissions(administrator=True)

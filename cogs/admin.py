@@ -13,7 +13,7 @@ from utils.db import (
     settings_col, personal_prefix_col, premium_col,
     logs_col, bump_col, tickets_col, disabled_cmds_col,
     voicemaster_col, counters_col, global_status_col,
-    server_status_col, db
+    server_status_col, antinuke_col, antiraid_col, automod_col, db
 )
 from utils.helpers import (
     BOT_OWNER_ID, ctx_owner, ctx_mod, ctx_premium,
@@ -52,6 +52,7 @@ MAX_ENTRIES_FETCHED = 5000
 PROTECTED_COMMANDS = {
     "settings", "prefix", "disable", "enable", "help",
     "premium", "maintenance", "aimode", "sync", "purge",
+    "antinuke", "antiraid", "automod", "fakeperms",
 }
 
 ACTIVITY_TYPES = {"watching", "playing", "listening", "competing"}
@@ -247,6 +248,12 @@ class Admin(commands.Cog):
         log_cfg = log_cfg or {}
         ticket_cfg = ticket_cfg or {}
 
+        nuke_cfg, raid_cfg, mod_cfg = await asyncio.gather(
+            antinuke_col.find_one({"guild_id": gid}),
+            antiraid_col.find_one({"guild_id": gid}),
+            automod_col.find_one({"guild_id": gid}),
+        )
+
         counter_docs = await counters_col.find({"guild_id": gid}).to_list(10)
         counters = ", ".join(f"`{d['type']}`" for d in counter_docs) or "None"
 
@@ -281,7 +288,9 @@ class Admin(commands.Cog):
         embed.add_field(
             name="Protection",
             value=(
-                f"Invite blocking: {state_text(gs.get('invite_block'))}\n"
+                f"Anti-Nuke: {state_text((nuke_cfg or {}).get('enabled'))}\n"
+                f"Anti-Raid: {state_text((raid_cfg or {}).get('enabled'))}\n"
+                f"Auto-Mod: {state_text((mod_cfg or {}).get('enabled'))}\n"
                 f"Jail role: {'Set' if gs.get('jail_role_id') else 'Not set'}"
             ),
             inline=True,

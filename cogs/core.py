@@ -185,23 +185,6 @@ class Core(commands.Cog):
             return
 
         gs = await settings_col.find_one({"_id": str(message.guild.id)})
-        if gs and gs.get("invite_block"):
-            clean = message.content.lower().replace(" ", "")
-            if "discord.gg/" in clean or "discord.com/invite/" in clean:
-                if (not message.author.guild_permissions.administrator
-                        and message.author.id != BOT_OWNER_ID):
-                    try:
-                        await message.delete()
-                        await message.channel.send(
-                            embed=discord.Embed(
-                                description=f"{message.author.mention}, invite links are not allowed here.",
-                                color=0xED4245
-                            ), delete_after=5
-                        )
-                    except:
-                        pass
-                    return
-
         user_afk = await afk_col.find_one(
             {"user_id": str(message.author.id), "guild_id": str(message.guild.id)}
         )
@@ -249,7 +232,7 @@ class Core(commands.Cog):
                     afk_time = afk_time.replace(tzinfo=timezone.utc)
                 ts_str   = f" (<t:{int(afk_time.timestamp())}:R>)" if afk_time else ""
                 await message.reply(embed=discord.Embed(
-                    description=f"💤 **{mentioned.display_name}** is AFK{ts_str}.\nReason: `{reason}`",
+                    description=f"<:sleep:1528208433327771750> **{mentioned.display_name}** is AFK{ts_str}.\nReason: `{reason}`",
                     color=0x2B2D31
                 ), mention_author=False)
 
@@ -281,7 +264,7 @@ class Core(commands.Cog):
             if "happy" in words:
                 try:
                     await asyncio.sleep(random.uniform(0.2, 0.8))
-                    await message.add_reaction("bounceheart:1522493780798734358")
+                    await message.add_reaction("<a:ghosty:1522505832288354334>")
                 except:
                     pass
 
@@ -318,7 +301,7 @@ class Core(commands.Cog):
                 if role:
                     ping_content = role.mention
             embed = discord.Embed(
-                title="<a:disboard:1522643098599948389> Bump Reminder",
+                title="<:disboard:1522643098599948389> Bump Reminder",
                 description="It's time to bump the server! Use `/bump` on DISBOARD.",
                 color=0xF0C040
             )

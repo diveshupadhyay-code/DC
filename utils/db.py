@@ -1,14 +1,22 @@
 import os
-from motor.motor_asyncio import AsyncIOMotorClient
+
 from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
 
 load_dotenv()
 
 MONGO_URL = os.getenv("MONGO_URL")
 if not MONGO_URL:
-    raise ValueError("MONGO_URL not found in environment variables.")
+    raise ValueError("MONGO_URL is missing. Please add it to your .env file.")
 
-_cluster = AsyncIOMotorClient(MONGO_URL)
+_cluster = AsyncIOMotorClient(
+    MONGO_URL,
+    appname="HappyBot",
+    serverSelectionTimeoutMS=10000,
+    connectTimeoutMS=10000,
+    retryWrites=True,
+    maxPoolSize=50,
+)
 db = _cluster["HappyBotDB"]
 
 settings_col        = db["server_settings"]
@@ -38,6 +46,7 @@ antispam_col        = db["antispam_config"]
 aesthetic_col       = db["aesthetic_config"]
 color_roles_col     = db["color_roles"]
 milestone_col       = db["milestones"]
+badge_optout_col    = db["badge_optout"]
 counting_col        = db["counting"]
 wordguess_col       = db["word_guess"]
 economy_col         = db["economy"]
@@ -58,3 +67,28 @@ fake_perms_col      = db["fake_permissions"]
 blacklist_col       = db["blacklist"]
 calls_col           = db["Calls"]
 autoresponder_col   = db["Autoresponders"]
+
+
+async def init_indexes():
+    plan = [
+        (premium_col, [("type", 1), ("id", 1)], {"unique": True}),
+        (blacklist_col, [("id", 1)], {"unique": True}),
+        (aesthetic_col, [("guild_id", 1)], {"unique": True}),
+        (color_roles_col, [("guild_id", 1)], {"unique": True}),
+        (milestone_col, [("guild_id", 1)], {"unique": True}),
+        (voicemaster_col, [("guild_id", 1)], {"unique": True}),
+        (bump_col, [("guild_id", 1)], {"unique": True}),
+        (server_status_col, [("guild_id", 1)], {"unique": True}),
+        (badge_optout_col, [("user_id", 1)], {"unique": True}),
+        (calls_col, [("server_id", 1)], {"unique": True}),
+        (
+            calls_col,
+            [("queued_at", 1)],
+            {"expireAfterSeconds": 1800, "partialFilterExpression": {"waiting": True}},
+        ),
+    ]
+    for col, keys, options in plan:
+        try:
+            await col.create_index(keys, **options)
+        except Exception as error:
+            print(f"  [INDEX] {col.name}: skipped ({error})")

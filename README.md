@@ -1,257 +1,247 @@
-# Happy Bot — Premium Edition
+<div align="center">
 
-A feature-rich Discord bot with Indian vibe, premium system, and comprehensive moderation.
+# Happy Bot
 
----
+**A friendly Discord bot with moderation, games, an economy, server safety tools and AI chat.**
 
-## Setup
+Default command symbol: `,` · Type `,help` or `/help` to start
 
-1. Clone/upload to Render (or any Node host)
-2. Copy `.env.example` to `.env` and fill in values
-3. `pip install -r requirements.txt`
-4. `python main.py`
-
-### Render Setup
-- Build Command: `pip install -r requirements.txt`
-- Start Command: `python main.py`
-- Environment Variables: `DISCORD_TOKEN`, `GROQ_API_KEY`, `MONGO_URL`
+</div>
 
 ---
 
-## Premium System
+## What it does
 
-Premium is managed by the bot owner only.
+| | |
+|---|---|
+| **Moderation** | Kick, ban, mute, warn, jail, lock channels and clear messages. Every action is saved as a case. |
+| **Safety** | Auto-Mod, Anti-Nuke, Anti-Raid and Fake Perms keep your server protected. |
+| **Fun** | Games, levels, birthdays, profiles, giveaways and roleplay actions. |
+| **Economy** | Earn, save, borrow, trade and invest HC. |
+| **Server tools** | Welcome and goodbye messages, tickets, roles, logs and counters. |
+| **Premium** | Global calls, color roles, private voice rooms, bump reminders and AI chat. |
+
+---
+
+## Get started
+
+**1. Download the project**
 
 ```
-,premium add server <guild_id>     — Activate premium for a server
-,premium add user <user_id>        — Activate premium for a user  
-,premium remove server <guild_id>  — Remove server premium
-,premium remove user <user_id>     — Remove user premium
-,premium list                      — List all premium entries
+git clone https://github.com/diveshupadhyay-code/dc.git
+cd happybot
 ```
 
-### Premium Features
-- AI Chat (mention @Happy)
-- Global Call between servers
-- Button Roles
-- VoiceMaster (temp VCs)
-- Bump Reminder
-- Custom Bot Status (per server)
-- Personal Prefix (per user, across servers)
+**2. Install what the bot needs**
+
+```
+pip install -r requirements.txt
+```
+
+**3. Add your keys**
+
+Copy `.env.example` to `.env`, then fill in the values.
+
+| Key | What it is |
+|-----|------------|
+| `DISCORD_TOKEN` | Your bot token from the Discord Developer Portal |
+| `MONGO_URL` | The link to your database |
+| `GROQ_API_KEY` | The key for AI chat |
+| `GROQ_MODEL` | Optional. Choose which AI model to use |
+
+**4. Start the bot**
+
+```
+python main.py
+```
+
+**5. Set up your server**
+
+Type `,quicksetup` in your server. It creates the basic channels and roles for you.
+
+### Host it on Render
+
+| Setting | Value |
+|---------|-------|
+| Build command | `pip install -r requirements.txt` |
+| Start command | `python main.py` |
+| Environment keys | `DISCORD_TOKEN`, `MONGO_URL`, `GROQ_API_KEY` |
+
+> The free plan can be slow to wake up after a quiet period. A small web page keeps the bot awake.
 
 ---
 
-## Command Reference
+## Keep it safe
 
-### Prefix Commands (default `,`)
+- Never share your bot token, database link or AI key with anyone.
+- Never upload your `.env` file. Add it to `.gitignore` so it stays on your computer.
+- If a key is ever shown in public, reset it right away in its own website and use the new one.
+- Give the bot only the permissions it needs.
+- Keep the bot's role high in your role list so it can act.
+- Only trust people you know well. Trusted people are never stopped by Anti-Nuke.
+- Choose a log channel with `,logs set #channel` so you can see what happened.
 
-#### Prefix Management
-| Command | Description |
-|---------|-------------|
-| `,prefix` | View current prefix |
-| `,prefix set <symbol>` | Set server prefix (Admin) |
-| `,prefix remove` | Reset to default `,` (Admin) |
-| `,prefix self <symbol>` | Personal prefix — all servers (Premium) |
-| `,prefix selfremove` | Remove personal prefix |
+---
 
-#### Moderation
-| Command | Description |
-|---------|-------------|
-| `,kick @user [reason]` | Kick a member |
-| `,ban @user [reason]` | Ban a member |
-| `,unban <user_id>` | Unban a user |
-| `,mute @user <minutes> [reason]` | Timeout a member |
-| `,unmute @user` | Remove timeout |
-| `,warn @user [reason]` | Warn a member |
-| `,warnings [@user]` | View warning count |
-| `,clearwarns @user` | Clear all warnings |
-| `,softban @user [reason]` | Ban + unban (clears messages) |
-| `,nickname @user [name]` | Change/reset nickname |
+## Premium
 
-#### Lock System
-| Command | Description |
-|---------|-------------|
-| `,lock [#channel]` | Lock text/thread/voice channel |
-| `,unlock [#channel]` | Unlock channel |
-| `,lockdown [reason]` | Lock ALL channels (emergency) |
-| `,unlockdown` | Lift server lockdown |
-| `,vclock [#vc]` | Lock voice channel |
-| `,vcunlock [#vc]` | Unlock voice channel |
+Only the bot owner can give or take Premium.
 
-#### Jail
-| Command | Description |
-|---------|-------------|
-| `,jailsetup` | Create jail role + channel (Admin) |
-| `,jail @user [reason]` | Jail a member |
-| `,unjail @user` | Release from jail |
+| Command | What it does |
+|---------|--------------|
+| `,premium` | See everyone who has Premium |
+| `,premium add server <id>` | Give a server Premium |
+| `,premium add user <id>` | Give a user Premium |
+| `,premium remove server <id>` | Take Premium from a server |
+| `,premium remove user <id>` | Take Premium from a user |
+| `,premium info <server id>` | See Premium details for a server |
 
-#### Purge
-| Command | Description |
-|---------|-------------|
-| `,purge <amount>` | Delete N messages |
-| `,purge bots <amount>` | Delete bot messages |
-| `,purge @user <amount>` | Delete user's messages |
-| `,purge links <amount>` | Delete messages with links |
+**For members:** AI chat, a Premium badge before your name, and half-price Catch.
 
-#### Roles
-| Command | Description |
-|---------|-------------|
-| `,role add @user @role` | Add role to member |
-| `,role remove @user @role` | Remove role from member |
-| `,massrole add @everyone @role` | Add role to all members |
-| `,massrole add bots @role` | Add role to all bots |
-| `,reactionrole add <msg_link> <emoji> @role` | Reaction role |
-| `,buttonrole @role Label \| @role2 Label2` | Button roles (Premium) |
-| `,boosterrole @role` | Reward role for boosters |
+**For servers:** Global Call, channel rules, auto reactions, color roles, private voice rooms, bump reminders, button roles, a custom bot status and Glow Up.
 
-#### Server Setup
-| Command | Description |
-|---------|-------------|
-| `,quicksetup` | Auto-create channels, roles, categories |
-| `,settings` | View server configuration dashboard |
-| `,premiumrole @role` | Set premium members role |
-| `,setupmute` | Create Muted/Image Muted/Reaction Muted roles |
-| `,setstatus <text>` | Custom bot status for your server (Premium) |
+> AI chat needs Premium on the member **and** on the server.
 
-#### Welcome / Bye
-| Command | Description |
-|---------|-------------|
-| `,welcome set #channel` | Set welcome channel |
-| `,welcome enable` | Enable welcome messages |
-| `,welcome disable` | Disable welcome messages |
-| `,setbye #channel` | Set + enable bye messages |
+Members can type `,perks` to see their status.
 
-#### Logging
-| Command | Description |
-|---------|-------------|
-| `,logs set #channel` | Set log channel |
-| `,logs disable` | Disable logging |
+---
 
-#### Tickets
-| Command | Description |
-|---------|-------------|
-| `,ticket setup` | Send ticket creation panel |
-| `,ticket close` | Close current ticket |
-| `,ticket add @user` | Add user to ticket |
-| `,ticket remove @user` | Remove user from ticket |
-| `,ticket staffrole @role` | Set staff role for ticket access |
+## Commands
 
-Ticket types: General Help, Report a User, Join the Staff, Server Event
+Commands start with `,` unless your server picks another symbol. Items in `[ ]` are optional. Items in `< >` are needed.
 
-#### Leveling
-| Command | Description |
-|---------|-------------|
-| `,level [@user]` | View level and XP |
-| `,leaderboard` | Top 10 members by level |
+For the full list, type `,help`. To search, type `,help <word>`.
 
-#### Birthday
-| Command | Description |
-|---------|-------------|
-| `,birthday [@user]` | View birthday |
+### Moderation
+
+| Command | What it does |
+|---------|--------------|
+| `,kick <@user> [reason]` | Remove a member |
+| `,ban <@user> [reason]` | Ban a member |
+| `,tempban <@user> <time>` | Ban for a set time, like `30m`, `2h` or `7d` |
+| `,unban <user id>` | Unban someone |
+| `,mute <@user> [time]` | Stop a member from chatting |
+| `,unmute <@user>` | Let them chat again |
+| `,warn <@user> [reason]` | Give a warning |
+| `,warnings [@user]` | See warnings |
+| `,clearwarns <@user>` | Delete all warnings |
+| `,softban <@user>` | Ban, then unban, to wipe recent messages |
+| `,nickname <@user> [name]` | Change or reset a nickname |
+| `,purge <amount>` | Delete recent messages |
+| `,purge bots/links/images <amount>` | Delete only one kind of message |
+| `,purge @user <amount>` | Delete messages from one member |
+
+### Locks and jail
+
+| Command | What it does |
+|---------|--------------|
+| `,lock [#channel]` / `,unlock [#channel]` | Stop or allow chatting in a channel |
+| `,vclock` / `,vcunlock` | Lock or unlock a voice channel |
+| `,lockdown [reason]` | Lock every channel in an emergency |
+| `,unlockdown` | End the lockdown |
+| `,jailsetup` | Create the jail role and channel |
+| `,jail <@user> [reason]` | Send a member to jail |
+| `,unjail <@user>` | Free them |
+
+### Safety
+
+| Command | What it does |
+|---------|--------------|
+| `,automod` | Open the Auto-Mod panel |
+| `,antinuke` | Open the Anti-Nuke panel |
+| `,antiraid` | Open the Anti-Raid panel |
+| `,fakeperms` | See roles that have fake permissions |
+
+### Roles
+
+| Command | What it does |
+|---------|--------------|
+| `,role add/remove <@user> <@role>` | Give or take a role |
+| `,massrole add/remove <everyone/bots> <@role>` | Change roles for many members |
+| `,reactionrole add <link> <emoji> <@role>` | Give a role when people react |
+| `,buttonrole <@role> Label \| ...` | A panel where buttons give roles (Premium) |
+| `,boosterrole <@role>` | A reward role for boosters |
+
+### Server setup
+
+| Command | What it does |
+|---------|--------------|
+| `,quicksetup` | Create basic channels and roles |
+| `,settings` | See all server settings |
+| `,prefix set <symbol>` | Change the command symbol |
+| `,welcome set <#channel>` | Choose the welcome channel |
+| `,bye set <#channel>` | Choose the goodbye channel |
+| `,logs set <#channel>` | Choose where logs go |
+| `,setupmute` | Create the mute roles |
+| `,counter create <type> <#vc>` | Show a live count in a voice channel |
+| `,ticket setup` | Post the ticket panel |
+| `,announce [#channel] <text>` | Post an announcement |
+| `,giveaway <time> <winners> <prize>` | Start a giveaway |
+
+Welcome and goodbye messages are off until you turn them on.
+
+### For everyone
+
+| Command | What it does |
+|---------|--------------|
+| `,level [@user]` / `,leaderboard` | See levels and the top members |
+| `,profile [@user]` | See a profile card |
 | `,birthday set DD/MM` | Set your birthday |
+| `,userinfo` / `,avatar` / `,serverinfo` | See details |
+| `,balance` / `,daily` / `,work` | Earn and check your HC |
+| `,afk [reason]` | Tell others you are away |
+| `,translate <lang> <text>` | Turn text into another language |
+| `,ship` / `,hot` / `,8ball` / `,hug` | Fun commands |
 
-#### Counters
-| Command | Description |
-|---------|-------------|
-| `,counter create members #vc` | Member count VC |
-| `,counter create bots #vc` | Bot count VC |
-| `,counter create channels #vc` | Channel count VC |
+### Premium
 
-#### Utility
-| Command | Description |
-|---------|-------------|
-| `,userinfo [@user]` | User information |
-| `,avatar [@user]` | User avatar |
-| `,serverinfo` | Server stats |
-| `,ping` | Bot latency |
-| `,membercount` | Member/bot/human count |
-| `,shrug [text]` | Send shrug |
-| `,translate <lang> <text>` | Translate text |
-| `,urban <word>` | Urban Dictionary lookup |
+| Command | What it does |
+|---------|--------------|
+| `,perks` | See your Premium status |
+| `,call` / `,hangup` / `,callinfo` | Talk live with another server |
+| `,vcsetup create` | Let members make private voice rooms |
+| `,bumpreminder on/off` | Remind your server after a DISBOARD bump |
+| `,setstatus <text>` | Add your own text to the bot's status |
+| `,color [name]` | Pick a color role for your name |
+| `,studio` | Open Server Studio |
+| `,glowup` | Make your server look nice in one click |
+| `,prefix self <symbol>` | Pick your own command symbol |
 
-#### Fun / Roleplay
-| Command | Description |
-|---------|-------------|
-| `,ship @user1 @user2` | Love match percentage |
-| `,hot [@user]` | Hotness meter |
-| `,hug/pat/slap/kiss/poke/highfive/bonk/cuddle @user` | Roleplay actions |
+### AI chat
 
-#### Profile
-| Command | Description |
-|---------|-------------|
-| `,profile [@user]` | View profile card |
-| `,profile bio <text>` | Set bio |
-| `,profile location <city>` | Set location |
+Mention **@Happy** or reply to a message from Happy. Admins choose where Happy chats.
 
-#### Announcement / Giveaway
-| Command | Description |
-|---------|-------------|
-| `,announce [#channel] <text>` | Send announcement |
-| `,giveaway <minutes> <winners> <prize>` | Start giveaway |
+| Command | What it does |
+|---------|--------------|
+| `,aiserver on/off` | Turn AI chat on or off in your server |
+| `,aichannel add <#channel>` | Pick a channel for AI chat. You can pick up to 5 |
+| `,aichannel remove <#channel>` | Stop AI chat in a channel |
+| `,aichannel reset` | Go back to channels named `happy`, `bot` or `commands` |
 
-#### AFK
-| Command | Description |
-|---------|-------------|
-| `,afk [reason]` | Set AFK status |
+### Bot owner
 
-#### Sticky
-| Command | Description |
-|---------|-------------|
-| `,sticky <text>` | Set sticky message |
-| `,unsticky` | Remove sticky message |
+| Command | What it does |
+|---------|--------------|
+| `,aimode on/off` | Turn AI chat on or off everywhere |
+| `,aiblock <server id> [remove]` | Block or allow AI chat in one server |
+| `,maintenance on/off` | Turn maintenance mode on or off |
 
-#### Embed Builder
-| Command | Description |
-|---------|-------------|
-| `,embed create` | Start new embed draft |
-| `,embed title <text>` | Set title |
-| `,embed description <text>` | Set description |
-| `,embed color #hex` | Set border color |
-| `,embed thumbnail <url>` | Set thumbnail |
-| `,embed send [#channel]` | Send the embed |
+### Slash commands
 
-#### Mimic / Echo
-| Command | Description |
-|---------|-------------|
-| `,mimic @user <message>` | Send message as user (via webhook) |
-| `,echo [#channel] <message>` | Send message as bot |
-
-#### AutoMod
-| Command | Description |
-|---------|-------------|
-| `,automod invite on/off` | Toggle anti-invite link |
-
-#### Voice (Premium)
-| Command | Description |
-|---------|-------------|
-| `,vcsetup` | Setup VoiceMaster temp VCs (Premium) |
-| `,call` | Connect to another server (Premium) |
-| `,hangup` | End the cross-server call (Premium) |
-
-#### Bump Reminder (Premium)
-| Command | Description |
-|---------|-------------|
-| `,bumpreminder on/off` | Toggle DISBOARD bump reminder (Premium) |
-
-#### Owner Only
-| Command | Description |
-|---------|-------------|
-| `,premium add/remove server/user <id>` | Manage premium |
-| `,premium list` | List premium entries |
-| `,aimode on/off` | Toggle AI chat globally |
-| `,maintenance on/off` | Toggle maintenance mode |
+Many commands also work with `/`, such as `/help`, `/ping`, `/userinfo`, `/avatar`, `/kick`, `/ban`, `/warn`, `/mute`, `/clear`, `/announce`, `/afk` and `/level`.
 
 ---
 
-## Slash Commands
-All major commands also have `/` slash equivalents:
-`/ping`, `/userinfo`, `/avatar`, `/kick`, `/ban`, `/warn`, `/mute`, `/clear`, `/announce`, `/afk`, `/level`, `/help`
+## Good to know
+
+- The bot owner can use every command in any server.
+- Each member can pick their own command symbol with Premium.
+- Premium and AI chat can be turned off for a server by the bot owner at any time.
 
 ---
 
-## Notes
-- Bot owner (hardcoded ID) can use ALL commands in any server without having any permissions
-- AI chat requires Premium (server or user)
-- Default prefix is `,` — can be changed per server or per user (premium)
-- Welcome/bye messages are **opt-in** — disabled by default
-- Render free tier may have cold starts; keep-alive Flask server handles this
+<div align="center">
+
+Made with care. If Happy helps your server, share it with a friend.
+
+</div>

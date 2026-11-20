@@ -15,6 +15,7 @@ _cluster = AsyncIOMotorClient(
     serverSelectionTimeoutMS=10000,
     connectTimeoutMS=10000,
     retryWrites=True,
+    retryReads=True,
     maxPoolSize=50,
 )
 db = _cluster["HappyBotDB"]
@@ -67,11 +68,29 @@ fake_perms_col      = db["fake_permissions"]
 blacklist_col       = db["blacklist"]
 calls_col           = db["Calls"]
 autoresponder_col   = db["Autoresponders"]
+updates_col         = db["bot_updates"]
+updates_seq_col     = db["bot_updates_seq"]
+bot_state_col       = db["bot_state"]
 
 
 async def init_indexes():
     plan = [
         (premium_col, [("type", 1), ("id", 1)], {"unique": True}),
+        (
+            tickets_col,
+            [("channel_id", 1)],
+            {"unique": True, "partialFilterExpression": {"channel_id": {"$exists": True}}},
+        ),
+        (
+            tickets_col,
+            [("guild_id", 1), ("owner_id", 1)],
+            {"unique": True, "partialFilterExpression": {"active": True}},
+        ),
+        (invites_col, [("guild_id", 1), ("code", 1)], {"unique": True}),
+        (invites_col, [("guild_id", 1), ("inviter_id", 1)], {}),
+        (invite_log_col, [("guild_id", 1)], {"unique": True}),
+        (msg_count_col, [("guild_id", 1), ("user_id", 1)], {"unique": True}),
+        (msg_count_col, [("guild_id", 1), ("count", -1)], {}),
         (blacklist_col, [("id", 1)], {"unique": True}),
         (aesthetic_col, [("guild_id", 1)], {"unique": True}),
         (color_roles_col, [("guild_id", 1)], {"unique": True}),
@@ -79,6 +98,8 @@ async def init_indexes():
         (voicemaster_col, [("guild_id", 1)], {"unique": True}),
         (bump_col, [("guild_id", 1)], {"unique": True}),
         (server_status_col, [("guild_id", 1)], {"unique": True}),
+        (updates_col, [("number", -1)], {"unique": True}),
+        (updates_col, [("kind", 1), ("number", -1)], {}),
         (badge_optout_col, [("user_id", 1)], {"unique": True}),
         (calls_col, [("server_id", 1)], {"unique": True}),
         (
@@ -91,4 +112,4 @@ async def init_indexes():
         try:
             await col.create_index(keys, **options)
         except Exception as error:
-            print(f"  [INDEX] {col.name}: skipped ({error})")
+            print(f"  [INDEX] {col.name}: skipped ({type(error).__name__})")

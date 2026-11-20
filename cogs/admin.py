@@ -12,11 +12,11 @@ from discord import app_commands
 from utils.db import (
     settings_col, personal_prefix_col, premium_col,
     logs_col, bump_col, tickets_col, disabled_cmds_col,
-    voicemaster_col, counters_col, global_status_col,
-    server_status_col, antinuke_col, antiraid_col, automod_col, db
+    voicemaster_col, counters_col,
+    antinuke_col, antiraid_col, automod_col, db
 )
 from utils.helpers import (
-    BOT_OWNER_ID, ctx_owner, ctx_mod, ctx_premium,
+    BOT_OWNER_ID, ctx_mod, ctx_premium,
     is_premium_server, is_premium_user,
     update_server_data, log_event
 )
@@ -46,7 +46,6 @@ MAX_GIVEAWAY_MINUTES = 43200
 MAX_ACTIVE_GIVEAWAYS = 25
 MAX_REQUIREMENT = 100000
 MAX_DISABLED_COMMANDS = 100
-MAX_STATUS_LENGTH = 128
 MAX_ENTRIES_FETCHED = 5000
 
 PROTECTED_COMMANDS = {
@@ -55,7 +54,6 @@ PROTECTED_COMMANDS = {
     "antinuke", "antiraid", "automod", "fakeperms",
 }
 
-ACTIVITY_TYPES = {"watching", "playing", "listening", "competing"}
 TRUE_WORDS = {"on", "true", "1", "yes", "enable", "enabled"}
 FALSE_WORDS = {"off", "false", "0", "no", "disable", "disabled"}
 HEX_COLOR = re.compile(r"#?([0-9a-fA-F]{6})")
@@ -1026,19 +1024,6 @@ class Admin(commands.Cog):
             f"{ctx.author} renamed #{old} to #{ctx.channel.name}",
         )
 
-    @commands.command()
-    @ctx_owner()
-    async def maintenance(self, ctx, status: str = None):
-        if not hasattr(self.bot, "maintenance"):
-            self.bot.maintenance = False
-        if status is None:
-            return await reply(ctx, card(description=f"Maintenance mode is **{state_text(self.bot.maintenance)}**."))
-        value = parse_switch(status)
-        if value is None:
-            return await reply(ctx, fail(f"Use `{ctx.clean_prefix}maintenance on` or `off`."))
-        self.bot.maintenance = value
-        await reply(ctx, ok(f"Maintenance mode is now **{state_text(value)}**."))
-
     async def _toggle_setting(self, ctx, key, label, status):
         gid = str(ctx.guild.id)
         if status is None:
@@ -1064,162 +1049,6 @@ class Admin(commands.Cog):
     @commands.has_permissions(manage_guild=True)
     async def togglereactions(self, ctx, status: str = None):
         await self._toggle_setting(ctx, "reactions_enabled", "Auto reactions", status)
-
-    async def _status_embed(self):
-        override = await global_status_col.find_one({"type": "owner"})
-        docs = await server_status_col.find({}).to_list(50)
-
-        embed = card(title="Bot status")
-        if override:
-            expires = override.get("expires_at")
-            expiry = f"<t:{int(expires.timestamp())}:R>" if expires else "Never"
-            embed.add_field(
-                name="Global override",
-                value=(
-                    f"{override.get('activity', 'watching').title()} `{override['status']}`\n"
-                    f"Expires: {expiry}"
-                ),
-                inline=False,
-            )
-        else:
-            embed.add_field(name="Global override", value="None. The normal rotation is running.", inline=False)
-
-        if docs:
-            lines = [f"`{d.get('guild_name', '?')}`: `{d['status']}`" for d in docs[:10]]
-            embed.add_field(name=f"Server statuses ({len(docs)})", value="\n".join(lines), inline=False)
-        else:
-            embed.add_field(name="Server statuses", value="None set", inline=False)
-        return embed
-
-    async def _set_status(self, ctx, activity, text, hours):
-        atype = (activity or "").lower()
-        if atype not in ACTIVITY_TYPES or not text:
-            return await reply(
-                ctx,
-                fail("Use an activity of watching, playing, listening or competing, followed by the text."),
-            )
-        text = text.strip()
-        if len(text) > MAX_STATUS_LENGTH:
-            return await reply(ctx, fail(f"Keep the status under {MAX_STATUS_LENGTH} characters."))
-
-        expires = datetime.now(timezone.utc) + timedelta(hours=hours) if hours else None
-        await global_status_col.update_one(
-            {"type": "owner"},
-            {"$set": {"type": "owner", "status": text, "activity": atype, "expires_at": expires}},
-            upsert=True,
-        )
-        await self.bot.change_presence(
-            activity=discord.Activity(type=getattr(discord.ActivityType, atype), name=text)
-        )
-        description = f"Status set to **{atype.title()}** `{text}`."
-        if expires:
-            description += f"\nEnds <t:{int(expires.timestamp())}:R>."
-        await reply(ctx, ok(description))
-
-    @commands.group(invoke_without_command=True)
-    @ctx_owner()
-    async def botstatus(self, ctx):
-        p = ctx.clean_prefix
-        embed = await self._status_embed()
-        embed.add_field(
-            name="Commands",
-            value=(
-                f"`{p}botstatus set <activity> <text>` sets a permanent status\n"
-                f"`{p}botstatus set24h <activity> <text>` sets a 24 hour status\n"
-                f"`{p}botstatus reset` removes the override\n"
-                f"`{p}botstatus view` refreshes this view\n"
-                f"`{p}botstatus removeserver <guild_id>` removes a server status"
-            ),
-            inline=False,
-        )
-        await reply(ctx, embed)
-
-    @botstatus.command(name="set")
-    @ctx_owner()
-    async def botstatus_set(self, ctx, activity: str = None, *, text: str = None):
-        await self._set_status(ctx, activity, text, None)
-
-    @botstatus.command(name="set24h")
-    @ctx_owner()
-    async def botstatus_set24h(self, ctx, activity: str = None, *, text: str = None):
-        await self._set_status(ctx, activity, text, 24)
-
-    @botstatus.command(name="reset")
-    @ctx_owner()
-    async def botstatus_reset(self, ctx):
-        result = await global_status_col.delete_one({"type": "owner"})
-        if result.deleted_count:
-            await reply(ctx, ok("The global override was removed. The default status is back."))
-        else:
-            await reply(ctx, fail("There is no global override to remove."))
-
-    @botstatus.command(name="view")
-    @ctx_owner()
-    async def botstatus_view(self, ctx):
-        await reply(ctx, await self._status_embed())
-
-    @botstatus.command(name="removeserver")
-    @ctx_owner()
-    async def botstatus_removeserver(self, ctx, guild_id: str = None):
-        if not guild_id or not guild_id.isdigit():
-            return await reply(ctx, fail(f"Use `{ctx.clean_prefix}botstatus removeserver <guild_id>`."))
-        doc = await server_status_col.find_one({"guild_id": guild_id})
-        if not doc:
-            return await reply(ctx, fail(f"No custom status found for server `{guild_id}`."))
-        await server_status_col.delete_one({"guild_id": guild_id})
-        await reply(
-            ctx,
-            ok(f"Removed the status of **{doc.get('guild_name', guild_id)}**: `{doc.get('status', '?')}`"),
-        )
-
-    @commands.command(aliases=["guildlist"])
-    @ctx_owner()
-    async def serverlist(self, ctx):
-        guilds = sorted(self.bot.guilds, key=lambda g: g.member_count or 0, reverse=True)
-        lines = [
-            f"`{i + 1}.` **{g.name}**  `{g.member_count or 0}` members  ID `{g.id}`"
-            for i, g in enumerate(guilds[:20])
-        ]
-        if len(guilds) > 20:
-            lines.append(f"And {len(guilds) - 20} more.")
-        await reply(ctx, card(title=f"Servers ({len(guilds)})", description="\n".join(lines)))
-
-    @commands.command()
-    @ctx_owner()
-    async def leaveguild(self, ctx, guild_id: int = None):
-        if not guild_id:
-            return await reply(ctx, fail(f"Use `{ctx.clean_prefix}leaveguild <guild_id>`."))
-        guild = self.bot.get_guild(guild_id)
-        if not guild:
-            return await reply(ctx, fail(f"I am not in a server with ID `{guild_id}`."))
-        name = guild.name
-        await guild.leave()
-        await reply(ctx, ok(f"Left **{name}**."))
-
-    @commands.command()
-    @ctx_owner()
-    async def dm(self, ctx, user: discord.User = None, *, message: str = None):
-        if not user or not message:
-            return await reply(ctx, fail(f"Use `{ctx.clean_prefix}dm @user <message>`."))
-        if len(message) > 2000:
-            return await reply(ctx, fail("The message is too long. Keep it under 2000 characters."))
-        try:
-            await user.send(message, allowed_mentions=NO_MENTIONS)
-        except discord.Forbidden:
-            return await reply(ctx, fail(f"I cannot message **{user}**. Their DMs are closed."))
-        await reply(ctx, ok(f"Message sent to **{user}**."))
-
-    @commands.command()
-    @ctx_owner()
-    async def sync(self, ctx, guild_id: int = None):
-        if guild_id:
-            target = discord.Object(id=guild_id)
-            self.bot.tree.copy_global_to(guild=target)
-            synced = await self.bot.tree.sync(guild=target)
-            await reply(ctx, ok(f"Synced `{len(synced)}` slash commands to server `{guild_id}`."))
-        else:
-            synced = await self.bot.tree.sync()
-            await reply(ctx, ok(f"Synced `{len(synced)}` slash commands globally."))
 
 
 async def setup(bot):

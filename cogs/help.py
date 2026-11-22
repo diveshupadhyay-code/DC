@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import math
+import re
 from typing import NamedTuple, Optional
 
 import discord
@@ -61,11 +63,14 @@ TIER_NOTE = {
 }
 
 DEFAULT_PREFIX = ","
+BLOCKED_PREFIX_CHARS = set("<>@#/\\`*_~|")
+MAX_PREFIX_LENGTH = 3
 MAX_QUERY_INPUT = 200
 MAX_QUERY_LENGTH = 40
 MAX_QUERY_WORDS = 5
 PER_PAGE = 6
 SEARCH_LIMIT = 8
+SEARCH_TEXT_LIMIT = 3400
 VIEW_TIMEOUT = 120
 RAW_STARTS = ("/", "Apps ", "@")
 NO_PING = discord.AllowedMentions.none()
@@ -93,7 +98,7 @@ class Viewer:
         if perm == "trusted":
             return self.trusted
         rank = LEVEL_RANK.get(perm)
-        if rank is None:
+        if rank is None or perm == "owner":
             return False
         return rank <= LEVEL_RANK.get(self.level, 0)
 
@@ -147,6 +152,7 @@ _RAW_REGISTRY = {
         ("afk [reason]", "Go away. The bot tells people who ping you"),
         ("mimic @user <message>", "Send a message that looks like it is from another member", "mod"),
         ("echo [#channel] <message>", "Make the bot send a message", "mod"),
+        ("/news", "See the latest bot updates and notices"),
     ],
     "profile": [
         ("profile [@user]", "See a profile card"),
@@ -216,8 +222,10 @@ _RAW_REGISTRY = {
         ("invites [@user]", "See how many people someone invited"),
         ("inviteleaderboard", "See the top 10 inviters"),
         ("inviteinfo <code>", "See details about an invite link"),
-        ("invitelog #channel", "Choose where invite logs go", "admin"),
-        ("invitelogdisable", "Turn invite logs off", "admin"),
+        ("invitelog [#channel]", "Choose where join and leave logs go", "admin"),
+        ("invitelogdisable", "Turn join and leave logs off", "admin"),
+        ("logpanel", "Open the server log settings with buttons", "admin"),
+        ("logignore [#channel]", "Skip a channel or category in message and voice logs. Run it again to undo", "admin"),
         ("invitereset [@user]", "Reset invite counts", "admin"),
         ("messages [@user]", "See how many messages someone sent"),
         ("msgleaderboard", "See the top 10 chatters"),
@@ -232,7 +240,7 @@ _RAW_REGISTRY = {
         ("unban <user_id> [reason]", "Unban someone using their ID", "mod"),
         ("mute <@user/id> [time] [reason]", "Stop a member from chatting. Default is 10 minutes, up to 28 days", "mod"),
         ("unmute <@user/id>", "Let a muted member chat again", "mod"),
-        ("softban <@user/id> [reason]", "Ban then unban, to wipe their recent messages", "mod"),
+        ("softban <@user/id> [reason]", "Ban then unban, to clear their recent messages", "mod"),
         ("warn <@user/id> [reason]", "Give a member a warning", "mod"),
         ("warnings [@user]", "See a member's warnings", "mod"),
         ("clearwarns <@user/id>", "Delete all warnings for a member", "mod"),
@@ -254,7 +262,7 @@ _RAW_REGISTRY = {
         ("unjail <@user/id>", "Free a member and give their roles back", "mod"),
         ("sticky <text>", "Keep a message at the bottom of a channel", "mod"),
         ("unsticky", "Remove the sticky message here", "mod"),
-        ("slowmode <seconds> [#ch]", "Set a wait time between messages (0 = off)", "mod"),
+        ("slowmode <seconds> [#ch]", "Set a wait time between messages (0 = off). Also works with /", "mod"),
         ("topic [text]", "Set or clear the channel topic", "mod"),
         ("rename <name>", "Rename this channel", "mod"),
     ],
@@ -316,9 +324,14 @@ _RAW_REGISTRY = {
         ("boosterrole @role", "Choose a reward role for boosters", "admin"),
     ],
     "tickets": [
+        ("ticket", "See the ticket tools you can use"),
         ("ticket setup", "Post the panel for opening tickets", "admin"),
         ("ticket staffrole @role", "Choose who can see all tickets", "admin"),
-        ("ticket close", "Close and delete this ticket", "mod"),
+        ("ticket types", "See all ticket topics", "admin"),
+        ("ticket addtype Name | About", "Add your own ticket topic", "admin"),
+        ("ticket removetype Name", "Remove a ticket topic", "admin"),
+        ("ticket custom on/off", "Let members open tickets with their own topic", "admin"),
+        ("ticket close", "Close this ticket. Only the person who opened it or the team can do this"),
         ("ticket add @user", "Let a person into this ticket", "mod"),
         ("ticket remove @user", "Remove a person from this ticket", "mod"),
     ],
@@ -353,16 +366,16 @@ _RAW_REGISTRY = {
         ("counter create <type> #vc", "Show a live count in a voice channel name", "admin"),
     ],
     "admin": [
-        ("settings", "See all server settings in one place", "admin"),
+        ("settings", "See all server settings in one place. Also works with /", "admin"),
         ("prefix", "See the symbol used before commands"),
-        ("prefix set <symbol>", "Change the server's command symbol (up to 3 letters)", "admin"),
+        ("prefix set <symbol>", "Change the server's command symbol (up to 3 characters)", "admin"),
         ("prefix remove", "Go back to the default symbol  ,", "admin"),
         ("prefix self <symbol>", "Pick your own command symbol in every server", "everyone", "any"),
         ("prefix selfremove", "Remove your own command symbol"),
         ("premiumrole @role", "Choose which role gets premium AI chat", "admin"),
         ("disable <command>", "Turn off a command in this server", "admin"),
         ("enable <command>", "Turn a command back on", "admin"),
-        ("announce [#ch] <message>", "Post an announcement", "mod"),
+        ("announce [#ch] <message>", "Post an announcement. Also works with /", "mod"),
         ("giveaway <time> <winners> <prize>", "Start a giveaway. Time looks like 30m, 2h, 1d", "mod"),
         ("giveaway ... --msgs <n>", "Members need n messages to enter", "mod"),
         ("giveaway ... --invites <n>", "Members need n invites to enter", "mod"),
@@ -464,22 +477,29 @@ _RAW_REGISTRY = {
         ("botstatus set <act> <text>", "Set a permanent bot status", "owner"),
         ("botstatus set24h <act> <text>", "Set a bot status for 24 hours", "owner"),
         ("botstatus reset", "Remove the custom bot status", "owner"),
+        ("botstatus view", "See the current bot status", "owner"),
+        ("botstatus removeserver <server id>", "Remove the status text a server added", "owner"),
         ("serverlist", "See every server the bot is in", "owner"),
         ("leaveguild <server id>", "Make the bot leave a server", "owner"),
         ("dm @user <message>", "Send a private message as the bot", "owner"),
-        ("sync [server id]", "Update the / commands", "owner"),
+        ("sync [owner/server id]", "Update the / commands", "owner"),
+        ("/update post", "Write a new update or maintenance notice", "owner"),
+        ("/update list", "See your recent posts and their numbers", "owner"),
+        ("/update remove <number>", "Delete a post by its number", "owner"),
         ("setavatar <url>", "Change the bot's picture", "owner"),
         ("setbanner <url>", "Change the bot's banner", "owner"),
-        ("setbotname <name>", "Change the bot's name", "owner"),
-        ("blacklist add user/server <id>", "Block a user or server from the bot", "owner"),
+        ("setdisplayname <name>", "Change the bot's name in this server. Leave empty to reset", "owner"),
+        ("blacklist", "See everyone who is blocked", "owner"),
+        ("blacklist add user/server <id> [reason]", "Block a user or server from the bot", "owner"),
         ("blacklist remove <id>", "Unblock a user or server", "owner"),
-        ("reload/load/unload <name>", "Update parts of the bot without restarting", "owner"),
-        ("cogs", "See all loaded parts of the bot", "owner"),
+        ("reload/load/unload <name>", "Refresh, add or remove a part of the bot without restarting", "owner"),
+        ("cogs", "See all parts of the bot that are on", "owner"),
         ("botinfo", "See bot servers, speed and uptime", "owner"),
         ("broadcast <message>", "Message every server owner", "owner"),
         ("shutdown", "Turn the bot off safely", "owner"),
     ],
 }
+
 
 REGISTRY: dict[str, list[Entry]] = {
     cat: [Entry(*row) for row in rows] for cat, rows in _RAW_REGISTRY.items()
@@ -493,10 +513,10 @@ CAT_META: dict[str, tuple[str, str, str, str]] = {
     "levels": ("Levels", EMOJI_DOT_YELLOW, "Earn points by chatting", "everyone"),
     "economy": ("Economy", EMOJI_INVEST, "Earn, save, borrow, trade and invest HC", "everyone"),
     "games": ("Games", EMOJI_GHOST, "Number, word and party games. Most also work with /", "everyone"),
-    "tracker": ("Tracker", EMOJI_COMMUNITY, "Count invites and messages", "everyone"),
+    "tracker": ("Tracker", EMOJI_COMMUNITY, "Count invites and messages, and choose server logs. Invites and messages also work with /", "everyone"),
     "mod": ("Moderation", EMOJI_DOT_RED, "Keep the server safe and tidy. Kick, ban, mute, warn, lock and clear also work with /", "staff"),
     "roles": ("Roles", EMOJI_COMMUNITY, "Give out roles in easy ways", "staff"),
-    "tickets": ("Tickets", EMOJI_MEMBER, "Help members one by one", "staff"),
+    "tickets": ("Tickets", EMOJI_MEMBER, "Help members one by one in private channels", "staff"),
     "setup": ("Server Setup", EMOJI_HOME, "Welcome, goodbye, logs and more", "staff"),
     "admin": ("Admin", EMOJI_GIVEAWAYS, "Command symbol, giveaways and announcements", "staff"),
     "emojis": ("Custom Emojis", EMOJI_BOT, "Add and manage emojis and stickers. Each one costs a small amount of HC", "staff"),
@@ -548,24 +568,28 @@ SLASH_CHOICES = [
 ]
 
 
+
 def _clean_prefix(value) -> str:
     if not isinstance(value, str):
         return DEFAULT_PREFIX
-    value = "".join(ch for ch in value if ch.isprintable() and ch not in "`\\")
-    return value.strip()[:3] or DEFAULT_PREFIX
+    value = "".join(
+        ch for ch in value
+        if ch.isascii() and ch.isprintable() and not ch.isspace() and ch not in BLOCKED_PREFIX_CHARS
+    )
+    return value[:MAX_PREFIX_LENGTH] or DEFAULT_PREFIX
 
 
 def _clean_query(value: Optional[str]) -> str:
-    return " ".join((value or "")[:MAX_QUERY_INPUT].lower().split())[:MAX_QUERY_LENGTH]
+    text = (value or "")[:MAX_QUERY_INPUT].lower()
+    text = re.sub(r"[^\w\s\-/.]", " ", text)
+    return " ".join(text.split())[:MAX_QUERY_LENGTH]
 
 
 def _safe_text(text: str) -> str:
-    return discord.utils.escape_markdown(discord.utils.escape_mentions(text))
+    return discord.utils.escape_markdown(discord.utils.escape_mentions(text), ignore_links=False)
 
 
 def _user_level(member: discord.Member) -> str:
-    if member.id == BOT_OWNER_ID:
-        return "owner"
     perms = member.guild_permissions
     if perms.administrator:
         return "admin"
@@ -582,15 +606,21 @@ def _accent(viewer: Viewer) -> int:
     return ACCENT.get(viewer.level, ACCENT["everyone"])
 
 
-def _status(viewer: Viewer) -> str:
-    parts = [LEVEL_LABEL.get(viewer.level, "Member")]
+def _access(viewer: Viewer) -> str:
+    text = LEVEL_LABEL.get(viewer.level, "Member")
     if viewer.trusted and viewer.level != "owner":
-        parts.append(BADGE_TRUSTED)
+        text += f"\n{BADGE_TRUSTED}"
+    return text
+
+
+def _plan(viewer: Viewer) -> str:
+    if viewer.user_premium and viewer.server_premium:
+        return "You and this server"
     if viewer.user_premium:
-        parts.append(f"{EMOJI_PREMIUM} Premium member")
+        return "You"
     if viewer.server_premium:
-        parts.append("Premium server")
-    return "  ·  ".join(parts)
+        return "This server"
+    return "Not active"
 
 
 def _show(pfx: str, syntax: str) -> str:
@@ -618,6 +648,18 @@ def _find_cat(word: str, cats: list[str]) -> Optional[str]:
     return None
 
 
+def _plural(count: int, word: str) -> str:
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def _brand(embed: discord.Embed, bot: discord.Client) -> discord.Embed:
+    if bot.user:
+        embed.set_author(name="Happy Help", icon_url=bot.user.display_avatar.url)
+    else:
+        embed.set_author(name="Happy Help")
+    return embed
+
+
 def _block(pfx: str, entry: Entry, viewer: Viewer, label: Optional[str] = None) -> str:
     tags = []
     badge = PERM_BADGE.get(entry.perm, "")
@@ -641,16 +683,17 @@ def _home_embed(bot: discord.Client, pfx: str, viewer: Viewer, cats: list[str]) 
     embed = discord.Embed(
         title=f"{EMOJI_HOME}  Happy Help",
         description=(
-            "Everything I can do is listed here.\n"
-            "Pick a topic from the menu below.\n\n"
-            f"**Command symbol**  `{pfx}`\n"
-            f"**You are**  {_status(viewer)}\n"
-            f"**Search**  `{pfx}help <word>`"
+            "Welcome! Pick a topic from the menu below to see what I can do.\n"
+            f"To find one command fast, type `{pfx}help <word>`."
         ),
         color=_accent(viewer),
     )
     if bot.user:
         embed.set_thumbnail(url=bot.user.display_avatar.url)
+
+    embed.add_field(name="Command symbol", value=f"`{pfx}`", inline=True)
+    embed.add_field(name="Your access", value=_access(viewer), inline=True)
+    embed.add_field(name="Premium", value=_plan(viewer), inline=True)
 
     for group, title in GROUPS:
         lines = [
@@ -662,13 +705,13 @@ def _home_embed(bot: discord.Client, pfx: str, viewer: Viewer, cats: list[str]) 
             embed.add_field(name=title, value="\n".join(lines), inline=True)
 
     if viewer.user_premium or viewer.server_premium:
-        embed.set_footer(text=f"Premium is active. Type {pfx}perks to see your perks.")
+        embed.set_footer(text=f"Premium is on. Type {pfx}perks to see your perks.")
     else:
         embed.set_footer(text=f"Type {pfx}perks to see what Premium gives you.")
     return embed
 
 
-def _category_embed(cat: str, pfx: str, viewer: Viewer, page: int) -> discord.Embed:
+def _category_embed(bot: discord.Client, cat: str, pfx: str, viewer: Viewer, page: int) -> discord.Embed:
     label, emoji, desc, _ = CAT_META[cat]
     entries = _visible(cat, viewer)
     pages = _page_count(cat, viewer)
@@ -676,26 +719,28 @@ def _category_embed(cat: str, pfx: str, viewer: Viewer, page: int) -> discord.Em
     chunk = entries[page * PER_PAGE:(page + 1) * PER_PAGE]
 
     embed = discord.Embed(title=f"{emoji}  {label}", color=_accent(viewer))
+    _brand(embed, bot)
     blocks = [_block(pfx, entry, viewer) for entry in chunk]
     body = "\n\n".join(blocks) if blocks else "Nothing here for you yet."
-    embed.description = f"*{desc}*\n\n{body}"[:4000]
+    embed.description = f"*{desc}*\n\n{body}"
 
-    footer = f"{len(entries)} commands"
+    footer = _plural(len(entries), "command")
     if pages > 1:
         footer += f"  ·  Page {page + 1} of {pages}"
     embed.set_footer(text=footer)
     return embed
 
 
-def _search_embed(query: str, pfx: str, viewer: Viewer) -> discord.Embed:
-    shown = _safe_text(query)
+def _search_embed(bot: discord.Client, query: str, pfx: str, viewer: Viewer) -> discord.Embed:
     embed = discord.Embed(title=f"{EMOJI_HOME}  Search", color=_accent(viewer))
+    _brand(embed, bot)
 
     words = query.split()[:MAX_QUERY_WORDS]
     if len(query) < 2 or not words:
         embed.description = "Please type at least 2 letters to search."
         return embed
 
+    shown = _safe_text(query)
     hits = []
     for cat, entry in ALL_COMMANDS:
         if not viewer.can_see(entry.perm):
@@ -708,13 +753,13 @@ def _search_embed(query: str, pfx: str, viewer: Viewer) -> discord.Embed:
     hits.sort(key=lambda hit: hit[0])
 
     if not hits:
-        embed.description = f"Nothing found for **{shown}**.\nType `{pfx}help` to see everything."
+        embed.description = f"Nothing found for **{shown}**.\nTry another word, or type `{pfx}help` to see everything."
         return embed
 
     parts, size = [], 0
     for _, label, entry in hits[:SEARCH_LIMIT]:
         block = _block(pfx, entry, viewer, label)
-        if size + len(block) + 2 > 3400:
+        if size + len(block) + 2 > SEARCH_TEXT_LIMIT:
             break
         parts.append(block)
         size += len(block) + 2
@@ -738,7 +783,7 @@ class CategorySelect(discord.ui.Select):
                 label=label,
                 value=key,
                 emoji=emoji,
-                description=f"{count} commands  ·  {desc}"[:100],
+                description=f"{_plural(count, 'command')}  ·  {desc}"[:100],
                 default=(key == current),
             ))
         if not options:
@@ -761,6 +806,7 @@ class HelpView(discord.ui.View):
         self.bot = bot
         self.registry = registry
         self.key = key
+        self.guild_id = key[0]
         self.user_id = key[1]
         self.pfx = pfx
         self.viewer = viewer
@@ -797,7 +843,7 @@ class HelpView(discord.ui.View):
     def build_embed(self) -> discord.Embed:
         if self.current_cat is None:
             return _home_embed(self.bot, self.pfx, self.viewer, self.cats)
-        return _category_embed(self.current_cat, self.pfx, self.viewer, self.page)
+        return _category_embed(self.bot, self.current_cat, self.pfx, self.viewer, self.page)
 
     async def refresh(self, interaction: discord.Interaction):
         self.sync()
@@ -823,6 +869,23 @@ class HelpView(discord.ui.View):
                 allowed_mentions=NO_PING,
             )
             return False
+        if interaction.guild_id != self.guild_id:
+            await interaction.response.send_message(
+                "This menu does not work here.", ephemeral=True, allowed_mentions=NO_PING,
+            )
+            return False
+        member = interaction.user
+        if self.viewer.level != "owner" and isinstance(member, discord.Member):
+            if _user_level(member) != self.viewer.level:
+                self.release()
+                self.stop()
+                await interaction.response.send_message(
+                    f"Your access has changed. Type `{self.pfx}help` to open a fresh menu.",
+                    ephemeral=True,
+                    allowed_mentions=NO_PING,
+                )
+                await self.disable()
+                return False
         return True
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item):
@@ -846,7 +909,7 @@ class HelpView(discord.ui.View):
         self.page = 0
         await self.refresh(interaction)
 
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_cat is None:
             return await interaction.response.defer()
@@ -887,7 +950,10 @@ class HelpView(discord.ui.View):
         self.stop()
         try:
             await interaction.response.edit_message(
-                embed=discord.Embed(description="Help menu closed.", color=CLOSED_COLOR),
+                embed=discord.Embed(
+                    description=f"Help menu closed. Type `{self.pfx}help` to open it again.",
+                    color=CLOSED_COLOR,
+                ),
                 view=None,
             )
         except discord.HTTPException:
@@ -900,6 +966,10 @@ async def _flag(awaitable) -> bool:
     except Exception:
         log.warning("Help lookup failed", exc_info=True)
         return False
+
+
+def _wait_text(seconds: float) -> str:
+    return f"Please wait {max(1, math.ceil(seconds))} seconds and try again."
 
 
 class Help(commands.Cog):
@@ -924,11 +994,16 @@ class Help(commands.Cog):
             return DEFAULT_PREFIX
         return _clean_prefix(data.get("prefix", DEFAULT_PREFIX))
 
+    async def _is_owner(self, member: discord.Member) -> bool:
+        if member.id != BOT_OWNER_ID:
+            return False
+        return await _flag(self.bot.is_owner(member))
+
     async def _get_context(self, member: discord.Member, guild: discord.Guild) -> tuple[str, Viewer]:
         pfx = await self._get_prefix(guild.id)
+        if await self._is_owner(member):
+            return pfx, Viewer("owner", True, True, True)
         level = _user_level(member)
-        if level == "owner":
-            return pfx, Viewer(level, True, True, True)
         trusted, user_premium, server_premium = await asyncio.gather(
             _flag(secui.is_trusted(self.bot, guild, member.id)),
             _flag(is_premium_user(member.id)),
@@ -952,7 +1027,7 @@ class Help(commands.Cog):
     async def help(self, ctx: commands.Context, *, query: str = None):
         if not ctx.channel.permissions_for(ctx.guild.me).embed_links:
             return await ctx.reply(
-                "I need the Embed Links permission to show the help menu.",
+                "I need the **Embed Links** permission in this channel to show the help menu.",
                 mention_author=False, allowed_mentions=NO_PING,
             )
 
@@ -965,7 +1040,7 @@ class Help(commands.Cog):
             start_cat = _find_cat(clean, cats)
             if start_cat is None:
                 return await ctx.reply(
-                    embed=_search_embed(clean, pfx, viewer),
+                    embed=_search_embed(self.bot, clean, pfx, viewer),
                     mention_author=False, allowed_mentions=NO_PING,
                 )
 
@@ -983,7 +1058,7 @@ class Help(commands.Cog):
     async def help_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.reply(
-                f"Please wait {error.retry_after:.0f} seconds and try again.",
+                _wait_text(error.retry_after),
                 mention_author=False, delete_after=5, allowed_mentions=NO_PING,
             )
         elif isinstance(error, commands.NoPrivateMessage):
@@ -1002,17 +1077,16 @@ class Help(commands.Cog):
     async def slash_help(self, interaction: discord.Interaction,
                          category: Optional[str] = None,
                          search: Optional[str] = None):
-        await interaction.response.defer(ephemeral=True)
-
         member = interaction.user
         if interaction.guild is None or not isinstance(member, discord.Member):
-            return await interaction.followup.send("Help only works inside a server.", ephemeral=True)
+            return await interaction.response.send_message("Help only works inside a server.", ephemeral=True)
 
+        await interaction.response.defer(ephemeral=True)
         pfx, viewer = await self._get_context(member, interaction.guild)
 
         if search:
             return await interaction.followup.send(
-                embed=_search_embed(_clean_query(search), pfx, viewer),
+                embed=_search_embed(self.bot, _clean_query(search), pfx, viewer),
                 ephemeral=True, allowed_mentions=NO_PING,
             )
 
@@ -1029,7 +1103,9 @@ class Help(commands.Cog):
     @slash_help.error
     async def slash_help_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
-            message = f"Please wait {error.retry_after:.0f} seconds and try again."
+            message = _wait_text(error.retry_after)
+        elif isinstance(error, app_commands.NoPrivateMessage):
+            message = "Help only works inside a server."
         else:
             log.error("Help command error", exc_info=error)
             message = "Something went wrong. Please try again in a moment."
